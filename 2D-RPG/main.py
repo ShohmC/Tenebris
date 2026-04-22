@@ -1,3 +1,13 @@
+# main.py — Entry point. The Game class runs the game loop and owns the state machine.
+#
+# Game states:
+#   "playing"   — player/enemy updates run; world is drawn
+#   "inventory" — inventory panel overlaid on frozen world
+#   "combat"    — circle-wipe transition, then combat menu
+#
+# Bootstrap order matters: pygame.init() and display.set_mode() must run before
+# any image loads, so Game() is created before TilemapHandler().
+
 from combat_handler import CombatHandler
 from tilemap_handler import *
 from camera import *
@@ -9,6 +19,7 @@ screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 class Game:
     def __init__(self):
         self.clock = pygame.time.Clock()
+        # dt scales player velocity so speed is frame-rate independent
         self.dt = self.clock.tick(FPS) / 100
         self.running = True
 
@@ -18,6 +29,7 @@ class Game:
         self.combat = CombatHandler()
         self.game_state = "playing"
 
+    # Handles QUIT, I key (toggle inventory), and left-click slot selection
     def events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -34,6 +46,9 @@ class Game:
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     self.inventory.select_inventory_slot()
 
+    # Advances logic for the active state only; inactive states are frozen.
+    # "playing": moves player/camera/enemies, checks for combat trigger.
+    # "combat": currently a stub after the transition finishes (TODO: combat logic).
     def update(self):
         if self.game_state == "playing":
             tilemap_handler.player_sprite_group.update(
@@ -68,6 +83,8 @@ class Game:
             if self.combat.transition_finished:
                 pass
 
+    # Draws tiles/player/enemies using camera-offset positions.
+    # Health bar is drawn in screen space (no camera offset).
     def draw_world(self):
         for tile in tilemap_handler.tile_sprite_group.sprites():
             screen.blit(tile.image, self.camera.apply(tile))
@@ -77,6 +94,8 @@ class Game:
         for enemy in tilemap_handler.enemy_sprite_group.sprites():
             screen.blit(enemy.image, self.camera.apply(enemy))
 
+    # Dispatches rendering based on game_state.
+    # display.flip() swaps the back buffer; clock.tick() caps the frame rate.
     def draw(self):
         screen.fill(RED)
         if self.game_state == "playing":
