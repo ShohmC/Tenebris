@@ -122,6 +122,8 @@ class Game:
         pygame.display.flip()
         self.clock.tick(FPS)
 
+    # Collects current player state into a dictionary for serialization.
+    # Called by events() on F5 and can be reused for autosave or save-on-quit.
     def get_save_data(self):
         return {
             "health": tilemap_handler.player_character.health,
@@ -130,6 +132,8 @@ class Game:
             "y": tilemap_handler.player_character.rect.y,
         }
 
+    # Loads save file and restores player state from the stored dictionary.
+    # Handles missing files and corrupted/incompatible pickle data gracefully.
     def load_save_data(self):
         try:
             data = self.save_manager.load_data("slot1")
