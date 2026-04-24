@@ -7,11 +7,13 @@
 #
 # Bootstrap order matters: pygame.init() and display.set_mode() must run before
 # any image loads, so Game() is created before TilemapHandler().
+import pickle
 
 from combat_handler import CombatHandler
 from tilemap_handler import *
 from camera import *
 from inventory import *
+from save_manager import SaveManager
 
 pygame.init()
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -22,17 +24,18 @@ class Game:
         # dt scales player velocity so speed is frame-rate independent
         self.dt = self.clock.tick(FPS) / 100
         self.running = True
-
         self.current_enemy_image = None
         self.camera = Camera()
         self.inventory = Inventory()
         self.combat = CombatHandler()
         self.game_state = "playing"
+        self.save_manager = SaveManager(".save", "SaveData")
 
     # Handles QUIT, I key (toggle inventory), and left-click slot selection
     def events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                # TODO: save on quit
                 self.running = False
 
             if event.type == pygame.KEYDOWN:
@@ -41,6 +44,12 @@ class Game:
                         self.game_state = "inventory"
                     else:
                         self.game_state = "playing"
+
+                if event.key == pygame.K_F5:
+                    self.save_manager.save_data(self.get_save_data(), "slot1")
+
+                if event.key == pygame.K_F9:
+                    self.load_save_data()
 
             if self.game_state == "inventory":
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -112,6 +121,30 @@ class Game:
 
         pygame.display.flip()
         self.clock.tick(FPS)
+
+    # Collects current player state into a dictionary for serialization.
+    # Called by events() on F5 and can be reused for autosave or save-on-quit.
+    def get_save_data(self):
+        return {
+            "health": tilemap_handler.player_character.health,
+            "exp": tilemap_handler.player_character.exp,
+            "x": tilemap_handler.player_character.rect.x,
+            "y": tilemap_handler.player_character.rect.y,
+        }
+
+    # Loads save file and restores player state from the stored dictionary.
+    # Handles missing files and corrupted/incompatible pickle data gracefully.
+    def load_save_data(self):
+        try:
+            data = self.save_manager.load_data("slot1")
+            tilemap_handler.player_character.health = data["health"]
+            tilemap_handler.player_character.exp = data["exp"]
+            tilemap_handler.player_character.rect.x = data["x"]
+            tilemap_handler.player_character.rect.y = data["y"]
+        except (pickle.UnpicklingError, EOFError, AttributeError, ImportError) as e:
+            print(f"Failed to load corrupted or incompatible pickle file: {e}")
+        except FileNotFoundError:
+            print("No save file found")
 
     def main(self):
         tilemap_handler.create_test_tilemap()
