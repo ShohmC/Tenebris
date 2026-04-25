@@ -4,9 +4,8 @@
 # Renders a grid-based inventory panel over the game world when the player
 # presses I. Supports slot selection via mouse click.
 #
-# Current state: items are not yet displayed
+# Current state: Items and their respective status are displayed, infinite item uses
 # inside slots. The next steps would be:
-#   • Render item images/icons inside each slot rect
 #   • Add item consumption
 # =============================================================================
 
@@ -55,6 +54,7 @@ class Inventory(pygame.sprite.Sprite):
         self.selected_slot = [[False for _ in range(self.cols)] for _ in range(self.rows)]
 
         self.title_font = pygame.font.Font(None, 48)
+        self.inventory_tooltip_font = pygame.font.Font(None, 18)
 
     # -------------------------------------------------------------------------
     # Update
@@ -95,6 +95,8 @@ class Inventory(pygame.sprite.Sprite):
         panel_x = (WINDOW_WIDTH  - panel_width)  // 2
         panel_y = (WINDOW_HEIGHT - panel_height) // 4
 
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+
         panel_rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
         pygame.draw.rect(screen, (60, 60, 60), panel_rect)   # Fill
         pygame.draw.rect(screen, BLACK, panel_rect, 4)        # Border
@@ -128,6 +130,18 @@ class Inventory(pygame.sprite.Sprite):
                     if self.inventory[row][col]["item"].image is not None:
                         screen.blit(self.inventory[row][col]["item"].image, (x + 4, y + 4))
 
+        # Tooltip drawn after all slots so nothing renders on top
+        for row in range(self.rows):
+            for col in range(self.cols):
+                slot = self.inventory[row][col]["rect"]
+                if slot and slot.collidepoint(mouse_x, mouse_y):
+                    if self.inventory[row][col]["item"] is not None:
+                        tooltip = self.inventory_tooltip_font.render(
+                            self.inventory[row][col]["item"].name, True, (255, 255, 255)
+                        )
+                        tooltip_rect = tooltip.get_rect(centerx=x + slot_size // 2, top=y + slot_size + 4)
+                        screen.blit(tooltip, tooltip_rect)
+
     # -------------------------------------------------------------------------
     # Input
     # -------------------------------------------------------------------------
@@ -154,4 +168,6 @@ class Inventory(pygame.sprite.Sprite):
                     self.selected_slot[row][col] = True
                     if self.inventory[row][col]["item"] is not None:
                         self.inventory[row][col]["item"].use(player)
+                        if self.inventory[row][col]["item"].consumable:
+                            self.inventory[row][col]["item"] = None
                     return   # Stop after first match

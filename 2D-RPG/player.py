@@ -73,6 +73,17 @@ class Player(pygame.sprite.Sprite):
             "speed_boost": {"multiplier": 0, "end": 0},
             "slow":        {"multiplier": 0, "end": 0}
         }
+        self.status_icons = {
+            "poison": pygame.transform.scale(
+                pygame.image.load("Items/Potions/poisonpotion.png").convert_alpha(),
+                (32, 32)),
+            "speed_boost": pygame.transform.scale(
+                pygame.image.load("Items/Potions/speedpotion.png").convert_alpha(),
+                (32, 32)),
+            "slow": pygame.transform.scale(
+                pygame.image.load("Items/Potions/slowpotion.png").convert_alpha(),
+                (32, 32))
+        }
 
         # --- HUD Fonts ---
         # Font(None, size) uses pygame's built-in font; replace None with a .ttf path for custom fonts.
@@ -98,9 +109,18 @@ class Player(pygame.sprite.Sprite):
     # Draws fixed-position health bar in screen space (no camera offset applied)
     def draw_player_health_bar(self, screen):
         screen.blit(self.health_label_font.render("Health", True, BLACK), (50, 50))
-        pygame.draw.rect(screen, RED,   (175, 55, 150, 25))
+        pygame.draw.rect(screen, WHITE,   (175, 55, 150, 25))
         pygame.draw.rect(screen, GREEN, (175, 55, 150 * (self.health / 100), 25))
         screen.blit(self.health_value_font.render(str(self.health), True, BLACK), (230, 56))
+
+    # Draws status symbols to the right of health bar
+    def draw_player_status_effects(self, screen):
+        x_offset = 340
+        y = 55
+        for status in self.active_statuses:
+            if status in self.status_icons:
+                screen.blit(self.status_icons[status], (x_offset, y))
+                x_offset += 36
 
     # -------------------------------------------------------------------------
     # Collision

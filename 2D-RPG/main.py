@@ -99,6 +99,7 @@ class Game:
         for player in tilemap_handler.player_sprite_group.sprites():
             screen.blit(player.image, self.camera.apply(player))
             player.draw_player_health_bar(screen)
+            player.draw_player_status_effects(screen)
         for enemy in tilemap_handler.enemy_sprite_group.sprites():
             screen.blit(enemy.image, self.camera.apply(enemy))
 

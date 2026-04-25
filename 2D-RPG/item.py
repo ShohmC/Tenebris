@@ -7,7 +7,7 @@ import pygame
 from config import *
 
 class Item:
-    def __init__(self, name, item_type, effect_value, image_path = None):
+    def __init__(self, name, item_type, effect_value, image_path = None, consumable = True):
         self.name = name
         self.item_type = item_type
         # Plain number for simple items, dictionary for status effects —
@@ -17,6 +17,7 @@ class Item:
             pygame.image.load(image_path).convert_alpha(),
             (TILESIZE * 2 - 8, TILESIZE * 2 - 8)  # slightly smaller than slot
         ) if image_path else None
+        self.consumable = consumable
 
     # Status effects write into player.status_timers and player.active_statuses;
     # the actual per-frame effect logic lives in player.status().
