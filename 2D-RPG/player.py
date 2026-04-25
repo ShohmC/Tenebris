@@ -32,6 +32,7 @@ class Player(pygame.sprite.Sprite):
         # velocity is a 2D vector reset to (0,0) every frame; direction keys
         # set one or both components before check_collision() applies the move.
         self.velocity = pygame.math.Vector2(0, 0)
+        self.velocity_multiplier = 1
 
         # Default facing image (right-facing frame 1), scaled to fit within a tile.
         self.image = pygame.transform.scale(
@@ -58,6 +59,14 @@ class Player(pygame.sprite.Sprite):
         self.exp            = 0
         self.level          = 1
         self.upgrade_points = 0
+
+        # --- Player Status Effects ---
+        self.active_statuses = set()
+        self.status_timers = {
+            "poison": {"damage": 2, "last_tick": 0, "end": 0},
+            "speed_boost": {"multiplier": 0, "end": 0},
+            "slow": {"multiplier": 0, "end": 0}
+        }
 
         # --- HUD Fonts ---
         # Font(None, size) uses pygame's built-in font; replace None with a .ttf path for custom fonts.
@@ -147,16 +156,42 @@ class Player(pygame.sprite.Sprite):
 
         if keys[pygame.K_w]:
             self.animate("up_counter", self.up_frames)
-            self.velocity.y = -PLAYER_Y_VELOCITY * dt
+            self.velocity.y = -PLAYER_Y_VELOCITY * dt * self.velocity_multiplier
         if keys[pygame.K_a]:
             self.animate("left_counter", self.left_frames)
-            self.velocity.x = -PLAYER_X_VELOCITY * dt
+            self.velocity.x = -PLAYER_X_VELOCITY * dt * self.velocity_multiplier
         if keys[pygame.K_s]:
             self.animate("down_counter", self.down_frames)
-            self.velocity.y = PLAYER_Y_VELOCITY * dt
+            self.velocity.y = PLAYER_Y_VELOCITY * dt * self.velocity_multiplier
         if keys[pygame.K_d]:
             self.animate("right_counter", self.right_frames)
-            self.velocity.x = PLAYER_X_VELOCITY * dt
+            self.velocity.x = PLAYER_X_VELOCITY * dt * self.velocity_multiplier
+
+    # -------------------------------------------------------------------------
+    # Status Effects
+    # -------------------------------------------------------------------------
+    def status(self):
+        current_time = pygame.time.get_ticks()
+
+        if "poison" in self.active_statuses:
+            if current_time > self.status_timers["poison"]["end"]:
+                self.active_statuses.remove("poison")
+            elif current_time - self.status_timers["poison"]["last_tick"] > 1000:  # tick every 1 second
+                self.health = max(0, self.health - self.status_timers["poison"]["damage"])
+                self.status_timers["poison"]["last_tick"] = current_time
+
+        if "speed_boost" in self.active_statuses:
+            self.velocity_multiplier = self.status_timers["speed_boost"]["multiplier"]
+            if current_time > self.status_timers["speed_boost"]["end"]:
+                self.velocity_multiplier = 1
+                self.active_statuses.remove("speed_boost")
+
+        if "slow" in self.active_statuses:
+            self.velocity_multiplier = self.status_timers["slow"]["multiplier"]
+            if current_time > self.status_timers["slow"]["end"]:
+                self.velocity_multiplier = 1
+                self.active_statuses.remove("slow")
+
 
     # -------------------------------------------------------------------------
     # Main Update (called by sprite group)
@@ -173,3 +208,4 @@ class Player(pygame.sprite.Sprite):
         """
         self.movement(dt)
         self.check_collision(tile_collision_group)
+        self.status()
