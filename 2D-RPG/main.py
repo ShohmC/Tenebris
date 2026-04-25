@@ -35,7 +35,6 @@ class Game:
     def events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                # TODO: save on quit
                 self.running = False
 
             if event.type == pygame.KEYDOWN:
@@ -53,7 +52,7 @@ class Game:
 
             if self.game_state == "inventory":
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    self.inventory.select_inventory_slot()
+                    self.inventory.select_inventory_slot(tilemap_handler.player_character)
 
     # Advances logic for the active state only; inactive states are frozen.
     # "playing": moves player/camera/enemies, checks for combat trigger.
@@ -100,6 +99,7 @@ class Game:
         for player in tilemap_handler.player_sprite_group.sprites():
             screen.blit(player.image, self.camera.apply(player))
             player.draw_player_health_bar(screen)
+            player.draw_player_status_effects(screen)
         for enemy in tilemap_handler.enemy_sprite_group.sprites():
             screen.blit(enemy.image, self.camera.apply(enemy))
 

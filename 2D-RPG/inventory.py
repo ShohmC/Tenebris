@@ -4,30 +4,26 @@
 # Renders a grid-based inventory panel over the game world when the player
 # presses I. Supports slot selection via mouse click.
 #
-# Current state: UI rendering only — items are not yet stored or displayed
+# Current state: Items and their respective status are displayed, infinite item uses
 # inside slots. The next steps would be:
-#   • Define an Item class
-#   • Store Item references in self.inventory[row][col]
-#   • Render item images/icons inside each slot rect
+#   • Add item consumption
 # =============================================================================
 
 from config import *   # TILESIZE, WINDOW_WIDTH/HEIGHT, tiles_dictionary, BLACK, etc.
+from item import *
 
 class Inventory(pygame.sprite.Sprite):
     """
     Draws a 9×3 slot inventory panel and tracks which slot is selected.
 
     Grid terminology used here:
-      rows    = number of COLUMNS across  (9)  — confusingly named, see note below
-      columns = number of ROWS down       (3)
-
-    NOTE: The variable names self.rows and self.columns are swapped relative
-    to typical convention (rows usually = vertical count). This is existing code;
-    be aware when iterating so you don't mix them up.
+      cols = number of slots across  (9)  — horizontal
+      rows = number of slots down    (3)  — vertical
     """
 
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
+        from items import health_potion, max_potion, poison_item, antidote, speed_boost_item, slow_item
 
         # Slot background images — loaded once and reused for every slot blit.
         self.inventory_slot_image = pygame.transform.scale(
@@ -39,25 +35,32 @@ class Inventory(pygame.sprite.Sprite):
             (TILESIZE * 2, TILESIZE * 2)
         )
 
-        # Grid dimensions (see naming note above).
-        self.rows    = 9   # Horizontal slot count
-        self.columns = 3   # Vertical slot count
+        self.cols = 9   # Horizontal slot count
+        self.rows = 3   # Vertical slot count
 
         # self.inventory holds Rect objects for each slot (set in draw_inventory_menu).
-        # Initialized as None; populated each draw call so positions stay accurate
-        # if the window were ever resized.
-        self.inventory = [[None for _ in range(self.rows)] for _ in range(self.columns)]
+        # Initialized as None; populated each draw call so positions stay accurate.
+        self.inventory = [[{"rect": None, "item": None} for _ in range(self.cols)] for _ in range(self.rows)]
+
+        # default inventory for testing
+        self.inventory[0][0]["item"] = health_potion
+        self.inventory[0][1]["item"] = antidote
+        self.inventory[0][2]["item"] = poison_item
+        self.inventory[0][3]["item"] = speed_boost_item
+        self.inventory[0][4]["item"] = slow_item
+        self.inventory[0][5]["item"] = max_potion
 
         # Parallel boolean grid tracking which slot is currently selected.
-        self.selected_slot = [[False for _ in range(self.rows)] for _ in range(self.columns)]
+        self.selected_slot = [[False for _ in range(self.cols)] for _ in range(self.rows)]
 
         self.title_font = pygame.font.Font(None, 48)
+        self.inventory_tooltip_font = pygame.font.Font(None, 18)
 
     # -------------------------------------------------------------------------
     # Update
     # -------------------------------------------------------------------------
 
-    # Placeholder for future per-frame inventory logic
+    # Placeholder for future per-frame inventory logic (drag-and-drop, tooltips, etc.)
     def update_menu(self):
         pass
 
@@ -85,12 +88,14 @@ class Inventory(pygame.sprite.Sprite):
         padding   = 4              # Pixels between slots
 
         # Panel dimensions derived from grid size + margin.
-        panel_width  = (self.rows    * slot_size) + 80
-        panel_height = (self.columns * slot_size) + 120
+        panel_width  = (self.cols * slot_size) + 80
+        panel_height = (self.rows * slot_size) + 120
 
         # Center the panel on screen.
         panel_x = (WINDOW_WIDTH  - panel_width)  // 2
         panel_y = (WINDOW_HEIGHT - panel_height) // 4
+
+        mouse_x, mouse_y = pygame.mouse.get_pos()
 
         panel_rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
         pygame.draw.rect(screen, (60, 60, 60), panel_rect)   # Fill
@@ -100,17 +105,17 @@ class Inventory(pygame.sprite.Sprite):
         screen.blit(title_surface, (panel_x + 20, panel_y + 15))
 
         # The grid starts with a small left offset to center it within the panel.
-        grid_size = self.rows * slot_size + (self.rows - 1) * padding
+        grid_size = self.cols * slot_size + (self.cols - 1) * padding
         start_x = panel_x + (panel_width - grid_size) // 2
         start_y = panel_y + 70
 
-        for row in range(self.columns):      # Iterates 0, 1, 2 (vertical)
-            for col in range(self.rows):     # Iterates 0..8 (horizontal)
+        for row in range(self.rows):      # Iterates 0, 1, 2 (vertical)
+            for col in range(self.cols):  # Iterates 0..8 (horizontal)
                 x = start_x + col * (slot_size + padding)
                 y = start_y + row * (slot_size + padding)
 
                 slot = pygame.Rect(x, y, slot_size, slot_size)
-                self.inventory[row][col] = slot   # Update rect position each draw
+                self.inventory[row][col]["rect"] = slot   # Update rect position each draw
 
                 pygame.draw.rect(screen, BLACK, slot)   # Slot background
 
@@ -120,11 +125,28 @@ class Inventory(pygame.sprite.Sprite):
                 else:
                     screen.blit(self.inventory_slot_image, slot)
 
+                # Item image drawn last so it appears on top of the slot graphic
+                if self.inventory[row][col]["item"] is not None:
+                    if self.inventory[row][col]["item"].image is not None:
+                        screen.blit(self.inventory[row][col]["item"].image, (x + 4, y + 4))
+
+        # Tooltip drawn after all slots so nothing renders on top
+        for row in range(self.rows):
+            for col in range(self.cols):
+                slot = self.inventory[row][col]["rect"]
+                if slot and slot.collidepoint(mouse_x, mouse_y):
+                    if self.inventory[row][col]["item"] is not None:
+                        tooltip = self.inventory_tooltip_font.render(
+                            self.inventory[row][col]["item"].name, True, (255, 255, 255)
+                        )
+                        tooltip_rect = tooltip.get_rect(centerx=x + slot_size // 2, top=y + slot_size + 4)
+                        screen.blit(tooltip, tooltip_rect)
+
     # -------------------------------------------------------------------------
     # Input
     # -------------------------------------------------------------------------
 
-    def select_inventory_slot(self):
+    def select_inventory_slot(self, player):
         """
         Called on MOUSEBUTTONDOWN (left click) from Game.events().
         Checks each slot Rect against the mouse position; if a match is found,
@@ -135,13 +157,17 @@ class Inventory(pygame.sprite.Sprite):
         """
         mouse_x, mouse_y = pygame.mouse.get_pos()
 
-        for row in range(self.columns):
-            for col in range(self.rows):
-                slot = self.inventory[row][col]
+        for row in range(self.rows):
+            for col in range(self.cols):
+                slot = self.inventory[row][col]["rect"]
                 if slot and slot.collidepoint(mouse_x, mouse_y):
                     # Deselect everything, then select the clicked slot.
-                    for r in range(self.columns):
-                        for c in range(self.rows):
+                    for r in range(self.rows):
+                        for c in range(self.cols):
                             self.selected_slot[r][c] = False
                     self.selected_slot[row][col] = True
+                    if self.inventory[row][col]["item"] is not None:
+                        self.inventory[row][col]["item"].use(player)
+                        if self.inventory[row][col]["item"].consumable:
+                            self.inventory[row][col]["item"] = None
                     return   # Stop after first match
