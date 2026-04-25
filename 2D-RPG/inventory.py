@@ -6,7 +6,6 @@
 #
 # Current state: UI rendering only — items are not yet stored or displayed
 # inside slots. The next steps would be:
-#   • Define an Item class
 #   • Store Item references in self.inventory[row][col]
 #   • Render item images/icons inside each slot rect
 # =============================================================================
@@ -18,12 +17,8 @@ class Inventory(pygame.sprite.Sprite):
     Draws a 9×3 slot inventory panel and tracks which slot is selected.
 
     Grid terminology used here:
-      rows    = number of COLUMNS across  (9)  — confusingly named, see note below
-      columns = number of ROWS down       (3)
-
-    NOTE: The variable names self.rows and self.columns are swapped relative
-    to typical convention (rows usually = vertical count). This is existing code;
-    be aware when iterating so you don't mix them up.
+      cols = number of slots across  (9)  — horizontal
+      rows = number of slots down    (3)  — vertical
     """
 
     def __init__(self):
@@ -39,17 +34,15 @@ class Inventory(pygame.sprite.Sprite):
             (TILESIZE * 2, TILESIZE * 2)
         )
 
-        # Grid dimensions (see naming note above).
-        self.rows    = 9   # Horizontal slot count
-        self.columns = 3   # Vertical slot count
+        self.cols = 9   # Horizontal slot count
+        self.rows = 3   # Vertical slot count
 
         # self.inventory holds Rect objects for each slot (set in draw_inventory_menu).
-        # Initialized as None; populated each draw call so positions stay accurate
-        # if the window were ever resized.
-        self.inventory = [[None for _ in range(self.rows)] for _ in range(self.columns)]
+        # Initialized as None; populated each draw call so positions stay accurate.
+        self.inventory = [[None for _ in range(self.cols)] for _ in range(self.rows)]
 
         # Parallel boolean grid tracking which slot is currently selected.
-        self.selected_slot = [[False for _ in range(self.rows)] for _ in range(self.columns)]
+        self.selected_slot = [[False for _ in range(self.cols)] for _ in range(self.rows)]
 
         self.title_font = pygame.font.Font(None, 48)
 
@@ -57,7 +50,7 @@ class Inventory(pygame.sprite.Sprite):
     # Update
     # -------------------------------------------------------------------------
 
-    # Placeholder for future per-frame inventory logic
+    # Placeholder for future per-frame inventory logic (drag-and-drop, tooltips, etc.)
     def update_menu(self):
         pass
 
@@ -85,8 +78,8 @@ class Inventory(pygame.sprite.Sprite):
         padding   = 4              # Pixels between slots
 
         # Panel dimensions derived from grid size + margin.
-        panel_width  = (self.rows    * slot_size) + 80
-        panel_height = (self.columns * slot_size) + 120
+        panel_width  = (self.cols * slot_size) + 80
+        panel_height = (self.rows * slot_size) + 120
 
         # Center the panel on screen.
         panel_x = (WINDOW_WIDTH  - panel_width)  // 2
@@ -100,12 +93,12 @@ class Inventory(pygame.sprite.Sprite):
         screen.blit(title_surface, (panel_x + 20, panel_y + 15))
 
         # The grid starts with a small left offset to center it within the panel.
-        grid_size = self.rows * slot_size + (self.rows - 1) * padding
+        grid_size = self.cols * slot_size + (self.cols - 1) * padding
         start_x = panel_x + (panel_width - grid_size) // 2
         start_y = panel_y + 70
 
-        for row in range(self.columns):      # Iterates 0, 1, 2 (vertical)
-            for col in range(self.rows):     # Iterates 0..8 (horizontal)
+        for row in range(self.rows):      # Iterates 0, 1, 2 (vertical)
+            for col in range(self.cols):  # Iterates 0..8 (horizontal)
                 x = start_x + col * (slot_size + padding)
                 y = start_y + row * (slot_size + padding)
 
@@ -135,13 +128,13 @@ class Inventory(pygame.sprite.Sprite):
         """
         mouse_x, mouse_y = pygame.mouse.get_pos()
 
-        for row in range(self.columns):
-            for col in range(self.rows):
+        for row in range(self.rows):
+            for col in range(self.cols):
                 slot = self.inventory[row][col]
                 if slot and slot.collidepoint(mouse_x, mouse_y):
                     # Deselect everything, then select the clicked slot.
-                    for r in range(self.columns):
-                        for c in range(self.rows):
+                    for r in range(self.rows):
+                        for c in range(self.cols):
                             self.selected_slot[r][c] = False
                     self.selected_slot[row][col] = True
                     return   # Stop after first match

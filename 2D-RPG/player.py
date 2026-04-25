@@ -7,6 +7,7 @@
 #   2. Velocity-based movement with delta-time scaling
 #   3. Tile collision resolution
 #   4. Drawing the health bar HUD directly onto the screen
+#   5. Per-frame status effect processing (poison, speed boost, slow)
 #
 # Inheritance chain:
 #   pygame.sprite.Sprite  ←  Player
@@ -32,6 +33,7 @@ class Player(pygame.sprite.Sprite):
         # velocity is a 2D vector reset to (0,0) every frame; direction keys
         # set one or both components before check_collision() applies the move.
         self.velocity = pygame.math.Vector2(0, 0)
+        # Multiplied into velocity each frame; modified by speed_boost and slow effects
         self.velocity_multiplier = 1
 
         # Default facing image (right-facing frame 1), scaled to fit within a tile.
@@ -61,11 +63,15 @@ class Player(pygame.sprite.Sprite):
         self.upgrade_points = 0
 
         # --- Player Status Effects ---
+        # active_statuses holds string names of currently active effects (e.g. "poison").
+        # status_timers holds per-effect timing and value data; written by Item.use()
+        # and read each frame by status(). Default values are placeholders — real values
+        # are set when an item is used.
         self.active_statuses = set()
         self.status_timers = {
-            "poison": {"damage": 2, "last_tick": 0, "end": 0},
+            "poison":      {"damage": 2, "last_tick": 0, "end": 0},
             "speed_boost": {"multiplier": 0, "end": 0},
-            "slow": {"multiplier": 0, "end": 0}
+            "slow":        {"multiplier": 0, "end": 0}
         }
 
         # --- HUD Fonts ---
@@ -89,33 +95,19 @@ class Player(pygame.sprite.Sprite):
     # HUD
     # -------------------------------------------------------------------------
 
+    # Draws fixed-position health bar in screen space (no camera offset applied)
     def draw_player_health_bar(self, screen):
-        """
-        Draws a fixed-position health bar in the top-left of the screen.
-        This is drawn in SCREEN space (not world space), so the camera offset
-        is NOT applied here — it always appears at the same screen position.
-
-        The green bar width scales linearly with self.health (0–100).
-        """
         screen.blit(self.health_label_font.render("Health", True, BLACK), (50, 50))
-        pygame.draw.rect(screen, RED,   (175, 55, 150, 25))                          # Background (full bar)
-        pygame.draw.rect(screen, GREEN, (175, 55, 150 * (self.health / 100), 25))    # Foreground (current HP)
+        pygame.draw.rect(screen, RED,   (175, 55, 150, 25))
+        pygame.draw.rect(screen, GREEN, (175, 55, 150 * (self.health / 100), 25))
         screen.blit(self.health_value_font.render(str(self.health), True, BLACK), (230, 56))
 
     # -------------------------------------------------------------------------
     # Collision
     # -------------------------------------------------------------------------
 
+    # Moves rect by velocity, then reverses if overlapping a solid tile
     def check_collision(self, tile_collision_group):
-        """
-        Moves self.rect by self.velocity, then checks for overlap with any tile
-        in the collision group. If a collision is found, the move is reversed.
-
-        This is an AABB (axis-aligned bounding box) approach — simple but it can
-        cause the player to "stick" to walls when pressing diagonally. A more
-        robust approach would separate x and y axes. Something to explore!
-        See: https://www.pygame.org/docs/ref/sprite.html#pygame.sprite.spritecollideany
-        """
         self.rect.move_ip(self.velocity)
         if pygame.sprite.spritecollideany(self, tile_collision_group):
             self.rect.move_ip(-self.velocity.x, -self.velocity.y)
@@ -124,15 +116,9 @@ class Player(pygame.sprite.Sprite):
     # Animation
     # -------------------------------------------------------------------------
 
+    # Steps the animation counter and swaps self.image; uses getattr/setattr to
+    # work with any directional counter by name without duplicating logic
     def animate(self, counter_name, frames):
-        """
-        Generic animation stepper shared by all four directions.
-
-        Uses getattr/setattr to read and write the correct counter by name
-        (e.g. "up_counter") without needing four near-identical methods.
-        The counter wraps at 20 via modulo; self.image is set to frame[0] or
-        frame[1] depending on which half of the cycle we're in.
-        """
         counter = (getattr(self, counter_name) + 1) % 20
         setattr(self, counter_name, counter)
         self.image = frames[0] if counter < 10 else frames[1]
@@ -141,18 +127,11 @@ class Player(pygame.sprite.Sprite):
     # Movement
     # -------------------------------------------------------------------------
 
+    # Reads held keys and sets velocity; velocity_multiplier is applied here so
+    # speed_boost and slow effects are reflected immediately each frame
     def movement(self, dt):
-        """
-        Reads keyboard state and sets self.velocity accordingly.
-        dt (delta-time) scales velocity so movement speed is consistent
-        regardless of frame rate fluctuations.
-
-        pygame.key.get_pressed() returns the state of EVERY key simultaneously,
-        which allows diagonal movement (unlike KEYDOWN events which fire once).
-        See: https://www.pygame.org/docs/ref/key.html#pygame.key.get_pressed
-        """
         keys = pygame.key.get_pressed()
-        self.velocity.update(0, 0)   # Reset each frame so the player stops when no key held
+        self.velocity.update(0, 0)
 
         if keys[pygame.K_w]:
             self.animate("up_counter", self.up_frames)
@@ -170,13 +149,17 @@ class Player(pygame.sprite.Sprite):
     # -------------------------------------------------------------------------
     # Status Effects
     # -------------------------------------------------------------------------
+
+    # Processes all active status effects once per frame.
+    # Poison ticks damage on an interval; speed_boost and slow apply a velocity
+    # multiplier until their duration expires. All timing uses pygame.time.get_ticks().
     def status(self):
         current_time = pygame.time.get_ticks()
 
         if "poison" in self.active_statuses:
             if current_time > self.status_timers["poison"]["end"]:
                 self.active_statuses.remove("poison")
-            elif current_time - self.status_timers["poison"]["last_tick"] > 1000:  # tick every 1 second
+            elif current_time - self.status_timers["poison"]["last_tick"] > 1000:
                 self.health = max(0, self.health - self.status_timers["poison"]["damage"])
                 self.status_timers["poison"]["last_tick"] = current_time
 
@@ -192,20 +175,14 @@ class Player(pygame.sprite.Sprite):
                 self.velocity_multiplier = 1
                 self.active_statuses.remove("slow")
 
-
     # -------------------------------------------------------------------------
     # Main Update (called by sprite group)
     # -------------------------------------------------------------------------
 
+    # Called by player_sprite_group.update() each frame; order matters —
+    # movement() sets velocity, check_collision() applies and potentially cancels it,
+    # status() processes any active effects
     def update(self, tile_collision_group, enemy_collision_group, dt):
-        """
-        Called once per frame by player_sprite_group.update(...) in Game.update().
-        Order matters: movement() sets velocity first, then check_collision() applies
-        and potentially cancels it.
-
-        enemy_collision_group is accepted here but collision with enemies is
-        handled from the enemy side (enemies.py check_collision).
-        """
         self.movement(dt)
         self.check_collision(tile_collision_group)
         self.status()
