@@ -4,14 +4,19 @@
 # and a dictionary for items with multiple properties (poison, speed_boost, slow).
 
 import pygame
+from config import *
 
 class Item:
-    def __init__(self, name, item_type, effect_value):
+    def __init__(self, name, item_type, effect_value, image_path = None):
         self.name = name
         self.item_type = item_type
         # Plain number for simple items, dictionary for status effects —
         # e.g. {"damage": 2, "duration": 10000} for poison
         self.effect_value = effect_value
+        self.image = pygame.transform.scale(
+            pygame.image.load(image_path).convert_alpha(),
+            (TILESIZE * 2 - 8, TILESIZE * 2 - 8)  # slightly smaller than slot
+        ) if image_path else None
 
     # Status effects write into player.status_timers and player.active_statuses;
     # the actual per-frame effect logic lives in player.status().

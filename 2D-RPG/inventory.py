@@ -12,7 +12,6 @@
 
 from config import *   # TILESIZE, WINDOW_WIDTH/HEIGHT, tiles_dictionary, BLACK, etc.
 from item import *
-from items import *
 
 class Inventory(pygame.sprite.Sprite):
     """
@@ -25,6 +24,7 @@ class Inventory(pygame.sprite.Sprite):
 
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
+        from items import health_potion, max_potion, poison_item, antidote, speed_boost_item, slow_item
 
         # Slot background images — loaded once and reused for every slot blit.
         self.inventory_slot_image = pygame.transform.scale(
@@ -123,6 +123,11 @@ class Inventory(pygame.sprite.Sprite):
                 else:
                     screen.blit(self.inventory_slot_image, slot)
 
+                # Item image drawn last so it appears on top of the slot graphic
+                if self.inventory[row][col]["item"] is not None:
+                    if self.inventory[row][col]["item"].image is not None:
+                        screen.blit(self.inventory[row][col]["item"].image, (x + 4, y + 4))
+
     # -------------------------------------------------------------------------
     # Input
     # -------------------------------------------------------------------------
@@ -142,7 +147,6 @@ class Inventory(pygame.sprite.Sprite):
             for col in range(self.cols):
                 slot = self.inventory[row][col]["rect"]
                 if slot and slot.collidepoint(mouse_x, mouse_y):
-                    print(f"Clicked slot {row}, {col}")
                     # Deselect everything, then select the clicked slot.
                     for r in range(self.rows):
                         for c in range(self.cols):
