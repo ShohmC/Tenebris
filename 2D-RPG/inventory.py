@@ -4,13 +4,15 @@
 # Renders a grid-based inventory panel over the game world when the player
 # presses I. Supports slot selection via mouse click.
 #
-# Current state: UI rendering only — items are not yet stored or displayed
+# Current state: items are not yet displayed
 # inside slots. The next steps would be:
-#   • Store Item references in self.inventory[row][col]
 #   • Render item images/icons inside each slot rect
+#   • Add item consumption
 # =============================================================================
 
 from config import *   # TILESIZE, WINDOW_WIDTH/HEIGHT, tiles_dictionary, BLACK, etc.
+from item import *
+from items import *
 
 class Inventory(pygame.sprite.Sprite):
     """
@@ -39,7 +41,15 @@ class Inventory(pygame.sprite.Sprite):
 
         # self.inventory holds Rect objects for each slot (set in draw_inventory_menu).
         # Initialized as None; populated each draw call so positions stay accurate.
-        self.inventory = [[None for _ in range(self.cols)] for _ in range(self.rows)]
+        self.inventory = [[{"rect": None, "item": None} for _ in range(self.cols)] for _ in range(self.rows)]
+
+        # default inventory for testing
+        self.inventory[0][0]["item"] = health_potion
+        self.inventory[0][1]["item"] = antidote
+        self.inventory[0][2]["item"] = poison_item
+        self.inventory[0][3]["item"] = speed_boost_item
+        self.inventory[0][4]["item"] = slow_item
+        self.inventory[0][5]["item"] = max_potion
 
         # Parallel boolean grid tracking which slot is currently selected.
         self.selected_slot = [[False for _ in range(self.cols)] for _ in range(self.rows)]
@@ -103,7 +113,7 @@ class Inventory(pygame.sprite.Sprite):
                 y = start_y + row * (slot_size + padding)
 
                 slot = pygame.Rect(x, y, slot_size, slot_size)
-                self.inventory[row][col] = slot   # Update rect position each draw
+                self.inventory[row][col]["rect"] = slot   # Update rect position each draw
 
                 pygame.draw.rect(screen, BLACK, slot)   # Slot background
 
@@ -117,7 +127,7 @@ class Inventory(pygame.sprite.Sprite):
     # Input
     # -------------------------------------------------------------------------
 
-    def select_inventory_slot(self):
+    def select_inventory_slot(self, player):
         """
         Called on MOUSEBUTTONDOWN (left click) from Game.events().
         Checks each slot Rect against the mouse position; if a match is found,
@@ -130,11 +140,14 @@ class Inventory(pygame.sprite.Sprite):
 
         for row in range(self.rows):
             for col in range(self.cols):
-                slot = self.inventory[row][col]
+                slot = self.inventory[row][col]["rect"]
                 if slot and slot.collidepoint(mouse_x, mouse_y):
+                    print(f"Clicked slot {row}, {col}")
                     # Deselect everything, then select the clicked slot.
                     for r in range(self.rows):
                         for c in range(self.cols):
                             self.selected_slot[r][c] = False
                     self.selected_slot[row][col] = True
+                    if self.inventory[row][col]["item"] is not None:
+                        self.inventory[row][col]["item"].use(player)
                     return   # Stop after first match

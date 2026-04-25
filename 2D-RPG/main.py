@@ -35,7 +35,6 @@ class Game:
     def events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                # TODO: save on quit
                 self.running = False
 
             if event.type == pygame.KEYDOWN:
@@ -53,7 +52,7 @@ class Game:
 
             if self.game_state == "inventory":
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    self.inventory.select_inventory_slot()
+                    self.inventory.select_inventory_slot(tilemap_handler.player_character)
 
     # Advances logic for the active state only; inactive states are frozen.
     # "playing": moves player/camera/enemies, checks for combat trigger.
