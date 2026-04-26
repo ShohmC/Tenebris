@@ -83,7 +83,7 @@ class Enemies(pygame.sprite.Sprite):
         self.health      = health
         self.damage      = damage
         self.exp_on_kill = exp_on_kill   # XP awarded to player on defeat (not yet implemented)
-
+        self.defense = defense
         # Previous-frame position used by animation() to infer movement direction.
         self.previous_x_location = self.rect.x
         self.previous_y_location = self.rect.y
@@ -220,5 +220,5 @@ class Bat(Enemies):
             # right frames
             "Enemy/Bat/right1.png", "Enemy/Bat/right2.png",
             # stats: health, damage, exp_on_kill
-            health, 1, 35
+            health, 1, 35 ,  defense=2
         )
