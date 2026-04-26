@@ -122,6 +122,19 @@ class Player(pygame.sprite.Sprite):
                 screen.blit(self.status_icons[status], (x_offset, y))
                 x_offset += 36
 
+    def get_attack(self):
+        # Base attack – you can later add weapon bonuses
+        return 10
+
+    def get_defense(self):
+        # Base defense – you can later add armor bonuses
+        return 5
+
+    def take_damage(self, amount):
+        self.health -= amount
+        if self.health < 0:
+            self.health = 0
+
     # -------------------------------------------------------------------------
     # Collision
     # -------------------------------------------------------------------------
