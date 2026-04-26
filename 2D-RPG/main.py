@@ -41,9 +41,13 @@ class Game:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_i:
                     if self.game_state == "playing":
+                        self.previous_state = self.game_state
                         self.game_state = "inventory"
-                    else:
-                        self.game_state = "playing"
+                    elif self.game_state == "combat":
+                        self.previous_state = self.game_state
+                        self.game_state = "inventory"
+                    else:  # currently in inventory → go back to previous state
+                        self.game_state = self.previous_state if self.previous_state is not None else "playing"
 
                 if event.key == pygame.K_F5:
                     self.save_manager.save_data(self.get_save_data(), "slot1")
@@ -53,7 +57,11 @@ class Game:
 
             if self.game_state == "inventory":
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    self.inventory.select_inventory_slot(tilemap_handler.player_character)
+                    result = self.inventory.select_inventory_slot(tilemap_handler.player_character)
+                    if result == "close":
+                        # Restore previous state (combat or playing)
+                        self.game_state = self.previous_state if self.previous_state is not None else "playing"
+                        self.previous_state = None
             if self.game_state == "combat" and self.combat.transition_finished:
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     result = self.combat.handle_click(
@@ -71,6 +79,7 @@ class Game:
                         self.running = False
                     elif result == "open_inventory":
                         self.game_state = "inventory"
+
     # Advances logic for the active state only; inactive states are frozen.
     # "playing": moves player/camera/enemies, checks for combat trigger.
     # "combat": currently a stub after the transition finishes (TODO: combat logic).
