@@ -49,7 +49,7 @@ class Enemies(pygame.sprite.Sprite):
                  down_img_1, down_img_2,
                  left_img_1, left_img_2,
                  right_img_1, right_img_2,
-                 health, damage, exp_on_kill , defende =0):
+                 health, damage, exp_on_kill , defense = 0):
         super().__init__()
 
         # --- Flag watched by Game.update() to trigger combat state ---
