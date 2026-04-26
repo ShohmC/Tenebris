@@ -30,6 +30,7 @@ class Game:
         self.current_enemy = None
         self.combat = CombatHandler()
         self.game_state = "playing"
+        self.previous_state = None
         self.save_manager = SaveManager(".save", "SaveData")
 
     # Handles QUIT, I key (toggle inventory), and left-click slot selection
@@ -78,6 +79,7 @@ class Game:
                         print("Game Over")
                         self.running = False
                     elif result == "open_inventory":
+                        self.previous_state = self.game_state 
                         self.game_state = "inventory"
 
     # Advances logic for the active state only; inactive states are frozen.
