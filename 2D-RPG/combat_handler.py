@@ -49,7 +49,8 @@ class CombatHandler(pygame.sprite.Sprite):
         self.transition_finished = False   # True after circle reaches 0 (menu can render)
 
         self.button_font = pygame.font.Font(None, 48)
-
+        self.fight_button = None
+        self.items_button = None
     # -------------------------------------------------------------------------
     # Transition
     # -------------------------------------------------------------------------
@@ -130,29 +131,77 @@ class CombatHandler(pygame.sprite.Sprite):
         screen.fill((255, 255, 255))   # White background
 
         # Scale sprites up for dramatic effect; combat is close-up view.
-        screen.blit(
-            pygame.transform.scale(player, (TILESIZE * 5, TILESIZE * 5)),
-            (WINDOW_WIDTH // 6, WINDOW_HEIGHT // 3.5)
-        )
-        screen.blit(
-            pygame.transform.scale(enemy, (TILESIZE * 6, TILESIZE * 6)),
-            (WINDOW_WIDTH // 1.5, WINDOW_HEIGHT // 6.25)
-        )
+        screen.blit(pygame.transform.scale(player.image, (TILESIZE * 5, TILESIZE * 5)),
+                (WINDOW_WIDTH // 6, WINDOW_HEIGHT // 3.5))
+    
 
-        # Define button Rects — these could later be returned or stored so
-        # Game.events() can check pygame.mouse.get_pos() against them.
-        fight_button = pygame.Rect(WINDOW_WIDTH // 3.5,              WINDOW_HEIGHT // 1.6, 250, 100)
-        items_button = pygame.Rect(WINDOW_WIDTH // 2 + WINDOW_WIDTH // 40, WINDOW_HEIGHT // 1.6, 250, 100)
-
-        # Fill then border: drawing the filled rect first, then a colored border on top.
-        pygame.draw.rect(screen, BLACK, fight_button)
-        pygame.draw.rect(screen, BLACK, items_button)
-        pygame.draw.rect(screen, GREEN, fight_button, 4)   # 4px border
-        pygame.draw.rect(screen, BLUE,  items_button, 4)
-
-        # Render text and center it within each button's Rect.
+        # Player health bar
+        player_bar_width = 200
+        player_bar_height = 20
+        player_bar_x = 1.5 + 50
+        player_bar_y = 100
+        pygame.draw.rect(screen, RED, (player_bar_x, player_bar_y, player_bar_width, player_bar_height))
+        player_health_percent = player.health / 100
+        pygame.draw.rect(screen, GREEN, (player_bar_x, player_bar_y, player_bar_width * player_health_percent, player_bar_height))
+        player_font = pygame.font.Font(None, 36)
+        player_health_text = player_font.render("Health", True, BLACK)
+        screen.blit(player_health_text, (player_bar_x, player_bar_y - 25))
+    
+        enemy_surface = pygame.image.load(enemy.initial_image).convert_alpha()
+        enemy_surface = pygame.transform.scale(enemy_surface, (TILESIZE * 6, TILESIZE * 6))
+        screen.blit(enemy_surface, (WINDOW_WIDTH // 1.5, WINDOW_HEIGHT // 6.25))
+        fight_x = WINDOW_WIDTH // 3.5
+        items_x = WINDOW_WIDTH // 2 + WINDOW_WIDTH // 40
+        fight_y = WINDOW_HEIGHT // 1.6
+    
+        # Enemy health bar
+        bar_width = 200
+        bar_height = 20
+        bar_x = WINDOW_WIDTH // 1.5 + 50
+        bar_y = WINDOW_HEIGHT // 6.25 - 30
+        pygame.draw.rect(screen, RED, (bar_x, bar_y, bar_width, bar_height))
+        health_percent = enemy.health / 100
+        pygame.draw.rect(screen, GREEN, (bar_x, bar_y, bar_width * health_percent, bar_height))
+        font = pygame.font.Font(None, 36)
+        health_text = font.render("Health", True, BLACK)
+        screen.blit(health_text, (bar_x, bar_y - 25))
+    
+        self.fight_button = pygame.Rect(fight_x, fight_y, 250, 100)
+        self.items_button = pygame.Rect(items_x, fight_y, 250, 100)
+        print(f"DEBUG: Fight button rect: {self.fight_button}")  
+        pygame.draw.rect(screen, BLACK, self.fight_button)
+        pygame.draw.rect(screen, BLACK, self.items_button)
+        pygame.draw.rect(screen, GREEN, self.fight_button, 4)
+        pygame.draw.rect(screen, BLUE,  self.items_button, 4)
         fight_text = self.button_font.render("Fight", True, (255, 0, 0))
         items_text = self.button_font.render("Items", True, (0, 255, 0))
-
-        screen.blit(fight_text, fight_text.get_rect(center=fight_button.center))
-        screen.blit(items_text, items_text.get_rect(center=items_button.center))
+        screen.blit(fight_text, fight_text.get_rect(center=self.fight_button.center))
+        screen.blit(items_text, items_text.get_rect(center=self.items_button.center)) 
+    def handle_click(self, mouse_pos, player, enemy, inventory):
+        print(f"DEBUG: handle_click called with mouse_pos: {mouse_pos}")
+        print(f"DEBUG: self.fight_button = {self.fight_button}")
+        if self.fight_button and self.fight_button.collidepoint(mouse_pos):
+            print("DEBUG: Fight button clicked")
+            player_attack = player.get_attack()
+            enemy_defense = getattr(enemy, 'defense', 0)
+            damage = max(1, player_attack - enemy_defense)
+            enemy.health -= damage
+            print(f"DEBUG: Player attack {player_attack}, enemy defense {enemy_defense}, damage {damage}, enemy health now {enemy.health}")
+            if enemy.health <= 0:
+                player.exp += enemy.exp_on_kill
+                enemy.kill()
+                return "victory"
+            else:
+                enemy_attack = enemy.damage
+                player_defense = player.get_defense()
+                enemy_damage = max(1, enemy_attack - player_defense)
+                player.take_damage(enemy_damage)
+                print(f"DEBUG: Enemy attack {enemy_attack}, player defense {player_defense}, enemy damage {enemy_damage}, player health now {player.health}")
+                if player.health <= 0:
+                    return "game_over"
+                return "turn_done"
+        elif self.items_button and self.items_button.collidepoint(mouse_pos):
+            print("DEBUG: Items button clicked")
+            return "open_inventory"
+        print("DEBUG: No button clicked")
+        return None
