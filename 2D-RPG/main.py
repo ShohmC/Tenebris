@@ -4,6 +4,7 @@
 #   "playing"   — player/enemy updates run; world is drawn
 #   "inventory" — inventory panel overlaid on frozen world
 #   "combat"    — circle-wipe transition, then combat menu
+#   "dialogue"  — NPC dialogue box shown; world is frozen
 #
 # Bootstrap order matters: pygame.init() and display.set_mode() must run before
 # any image loads, so Game() is created before TilemapHandler().
@@ -11,12 +12,13 @@ import pickle
 
 from combat_handler import CombatHandler
 from tilemap_handler import *
+from tiles import TransitionTile
 from camera import *
 from inventory import *
 from save_manager import SaveManager
 
 pygame.init()
-screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE | pygame.SCALED)
 
 class Game:
     def __init__(self):
@@ -31,18 +33,50 @@ class Game:
         self.game_state = "playing"
         self.save_manager = SaveManager(".save", "SaveData")
 
-    # Handles QUIT, I key (toggle inventory), and left-click slot selection
+        # NPC dialogue tracking
+        self.active_npc = None  # The NPC currently being talked to
+
+    # Handles QUIT, I key (toggle inventory), E key (NPC interact),
+    # F key (map transition), and left-click slot selection
     def events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
 
             if event.type == pygame.KEYDOWN:
+                # --- Dialogue state: E advances / closes dialogue ---
+                if self.game_state == "dialogue":
+                    if event.key == pygame.K_e:
+                        if self.active_npc:
+                            still_talking = self.active_npc.interact()
+                            if not still_talking:
+                                self.active_npc = None
+                                self.game_state = "playing"
+                    continue  # Block all other keys during dialogue
+
                 if event.key == pygame.K_i:
                     if self.game_state == "playing":
                         self.game_state = "inventory"
-                    else:
+                    elif self.game_state == "inventory":
                         self.game_state = "playing"
+
+                # --- E key: interact with nearby NPC ---
+                if event.key == pygame.K_e and self.game_state == "playing":
+                    for npc in tilemap_handler.npc_sprite_group.sprites():
+                        if npc.is_player_in_range(tilemap_handler.player_character.rect):
+                            npc.interact()
+                            self.active_npc = npc
+                            self.game_state = "dialogue"
+                            break
+
+                # --- F key: activate map transition ---
+                if event.key == pygame.K_f and self.game_state == "playing":
+                    for t_tile in tilemap_handler.transition_sprite_group.sprites():
+                        if t_tile.is_player_on_tile(tilemap_handler.player_character.rect):
+                            tilemap_handler.transition_to_map(
+                                t_tile.target_map, t_tile.dest_x, t_tile.dest_y
+                            )
+                            break
 
                 if event.key == pygame.K_F5:
                     self.save_manager.save_data(self.get_save_data(), "slot1")
@@ -93,6 +127,7 @@ class Game:
 
     # Draws tiles/player/enemies using camera-offset positions.
     # Health bar is drawn in screen space (no camera offset).
+    # Also draws NPC interact prompts and transition prompts.
     def draw_world(self):
         for tile in tilemap_handler.tile_sprite_group.sprites():
             screen.blit(tile.image, self.camera.apply(tile))
@@ -103,12 +138,26 @@ class Game:
         for enemy in tilemap_handler.enemy_sprite_group.sprites():
             screen.blit(enemy.image, self.camera.apply(enemy))
 
+        # NPC interaction prompts (shown when player is nearby)
+        for npc in tilemap_handler.npc_sprite_group.sprites():
+            if npc.is_player_in_range(tilemap_handler.player_character.rect):
+                npc.draw_interact_prompt(screen, self.camera.offset)
+
+        # Transition tile prompts (shown when player stands on one)
+        for t_tile in tilemap_handler.transition_sprite_group.sprites():
+            if t_tile.is_player_on_tile(tilemap_handler.player_character.rect):
+                t_tile.draw_prompt(screen, self.camera.offset)
+
     # Dispatches rendering based on game_state.
     # display.flip() swaps the back buffer; clock.tick() caps the frame rate.
     def draw(self):
         screen.fill(RED)
         if self.game_state == "playing":
             self.draw_world()
+        elif self.game_state == "dialogue":
+            self.draw_world()
+            if self.active_npc:
+                self.active_npc.draw_dialogue_box(screen)
         elif self.game_state == "inventory":
             self.draw_world()
             self.inventory.draw_inventory_menu(screen)
@@ -130,6 +179,7 @@ class Game:
             "exp": tilemap_handler.player_character.exp,
             "x": tilemap_handler.player_character.rect.x,
             "y": tilemap_handler.player_character.rect.y,
+            "map": tilemap_handler.current_map,
         }
 
     # Loads save file and restores player state from the stored dictionary.
@@ -137,6 +187,10 @@ class Game:
     def load_save_data(self):
         try:
             data = self.save_manager.load_data("slot1")
+            # Restore map if saved (backwards compatible with old saves)
+            saved_map = data.get("map", tilemap_handler.current_map)
+            if saved_map and saved_map != tilemap_handler.current_map:
+                tilemap_handler.transition_to_map(saved_map, data["x"], data["y"])
             tilemap_handler.player_character.health = data["health"]
             tilemap_handler.player_character.exp = data["exp"]
             tilemap_handler.player_character.rect.x = data["x"]

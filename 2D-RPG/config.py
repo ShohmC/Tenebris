@@ -51,7 +51,8 @@ tiles_dictionary = {
     "Wall Tile": "Tiles/WallTile.png",
     "Water Tile": "Tiles/WaterTile.png",
     "Tree Tile": "Tiles/TreeTile.png",
-    "Chests": "Tiles/Chest.png"
+    "Chests": "Tiles/Chest.png",
+    "Transition Tile": "Tiles/DirtTile.png",
 }
 
 # Player frames loaded once at startup — reusing surfaces is faster than
