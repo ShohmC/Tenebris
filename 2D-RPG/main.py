@@ -27,6 +27,7 @@ class Game:
         self.current_enemy_image = None
         self.camera = Camera()
         self.inventory = Inventory()
+        self.current_enemy = None
         self.combat = CombatHandler()
         self.game_state = "playing"
         self.save_manager = SaveManager(".save", "SaveData")
@@ -53,7 +54,23 @@ class Game:
             if self.game_state == "inventory":
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     self.inventory.select_inventory_slot(tilemap_handler.player_character)
-
+            if self.game_state == "combat" and self.combat.transition_finished:
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    result = self.combat.handle_click(
+                        pygame.mouse.get_pos(),
+                        tilemap_handler.player_character,
+                        self.current_enemy,
+                        self.inventory
+                    )
+                    if result == "victory":
+                        self.game_state = "playing"
+                        self.combat.transition_finished = False
+                        self.current_enemy = None
+                    elif result == "game_over":
+                        print("Game Over")
+                        self.running = False
+                    elif result == "open_inventory":
+                        self.game_state = "inventory"
     # Advances logic for the active state only; inactive states are frozen.
     # "playing": moves player/camera/enemies, checks for combat trigger.
     # "combat": currently a stub after the transition finishes (TODO: combat logic).
@@ -117,7 +134,7 @@ class Game:
                 self.draw_world()
                 self.combat.draw_transition(screen)
             else: # Waits for the transition to finish THEN blits the menu
-                self.combat.draw_combat_menu(screen, player_image_right_1, self.current_enemy_image)
+                self.combat.draw_combat_menu(screen,  tilemap_handler.player_character,   self.current_enemy )
 
         pygame.display.flip()
         self.clock.tick(FPS)
