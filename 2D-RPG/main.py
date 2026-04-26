@@ -95,6 +95,7 @@ class Game:
 
                 if enemy.initiate_battle_sequence:
                     self.game_state = "combat"
+                    self.current_enemy = enemy
                     self.current_enemy_image = pygame.image.load(enemy.initial_image)
                     self.combat.start_transition()
 
