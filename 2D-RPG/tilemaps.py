@@ -54,7 +54,7 @@
 # =============================================================================
 
 TUTORIAL_MAP = [
-    # row  0 — north boundary wall (gap at cols 20-21 for map transition)
+    # row  0 — north boundary wall (gap at cols 20-21 shows transition exit)
     'TTTTTTTTTTTTTTTTTTTT..TTTTTTTTTTTTTTTT',
     # row  1 — transition gateway at cols 20-21
     'T...................DD...............T',
@@ -65,9 +65,9 @@ TUTORIAL_MAP = [
     # row  4 — Elder Mage NPC (col 13) + Chest (col 25)
     'T....D.......N...........C.....D.....T',
     # row  5 — Antidote sits near the chest (col 25 area)
-    'T....D.......................a..D.....T',
+    'T....D......................a..D.....T',
     # row  6 — sanctum south wall; path forks below here
-    'T....DDDDDDDDDDDDD....DDDDDDDDD......T',
+    'T....DDDDDDDDDDDDDDDDD..DDDDDDDDD....T',
     # row  7 — left branch col ~13, right branch col ~22
     'T............D........D..............T',
     # row  8 — Speed Boost on right branch (col ~29)
@@ -77,7 +77,7 @@ TUTORIAL_MAP = [
     # row 10 — both branches merge back to single column
     'T............DDDDDDDDDD..............T',
     # row 11 — Health Potion on open grass (col ~19) — post-fight reward
-    'T..................h..................T',
+    'T..................h.................T',
     # row 12 — open corridor
     'T....................................T',
     # row 13 — COMBAT ROW: Village Guide (col 5) warns the player,
@@ -100,11 +100,11 @@ TUTORIAL_MAP = [
 # =============================================================================
 
 TEST_TILEMAP_1 = [
-    '.............................................',
-    '.............................................',
-    '....................E........................',
-    '..............................................',
-    'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDPDDDDD',
+    'T............................................',
+    'T............................................',
+    'T...................E........................',
+    'T.............................................',
+    'TDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDPDDDDD',
     'TTTTTTTDDD........TTT.TTTTTTTTT.....TTTTDDDDDD',
 ]
 

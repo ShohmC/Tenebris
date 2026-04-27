@@ -29,12 +29,14 @@ from tilemaps   import *       # All tilemap strings
 # Each entry: (tile_col, tile_row, target_map_name, dest_col, dest_row)
 TRANSITION_DEFINITIONS = {
     "tutorial": [
-        (20, 1, "test", 42, 3),    # top gate leads to test map (left tile)
-        (21, 1, "test", 42, 3),    # top gate leads to test map (right tile)
+        (20, 0, "test", 42, 3),    # top gate exit (left tile, outermost)
+        (21, 0, "test", 42, 3),    # top gate exit (right tile, outermost)
+        (20, 1, "test", 42, 3),    # top gate entry (left tile)
+        (21, 1, "test", 42, 3),    # top gate entry (right tile)
     ],
     "test": [
-        (0, 3, "tutorial", 20, 15),  # left edge leads back to tutorial (upper tile)
-        (0, 4, "tutorial", 20, 15),  # left edge leads back to tutorial (lower tile)
+        (1, 3, "tutorial", 20, 15),  # left edge leads back to tutorial (upper tile)
+        (1, 4, "tutorial", 20, 15),  # left edge leads back to tutorial (lower tile)
     ],
 }
 

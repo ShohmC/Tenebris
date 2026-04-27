@@ -106,12 +106,16 @@ class Player(pygame.sprite.Sprite):
     # HUD
     # -------------------------------------------------------------------------
 
-    # Draws fixed-position health bar in screen space (no camera offset applied)
+    # Draws fixed-position health bar and XP/level in screen space (no camera offset applied)
     def draw_player_health_bar(self, screen):
         screen.blit(self.health_label_font.render("Health", True, BLACK), (50, 50))
         pygame.draw.rect(screen, WHITE,   (175, 55, 150, 25))
         pygame.draw.rect(screen, GREEN, (175, 55, 150 * (self.health / 100), 25))
         screen.blit(self.health_value_font.render(str(self.health), True, BLACK), (230, 56))
+
+        # Level & XP display below health bar
+        level_text = self.health_value_font.render(f"Lv.{self.level}  XP: {self.exp}", True, BLACK)
+        screen.blit(level_text, (50, 85))
 
     # Draws status symbols to the right of health bar
     def draw_player_status_effects(self, screen):

@@ -50,6 +50,15 @@ class Game:
         # NPC dialogue tracking
         self.active_npc = None  # The NPC currently being talked to
 
+        # Map name label — shown briefly after map transitions
+        self.map_label_timer = 180  # frames to show (3 sec at 60 FPS); starts on first map
+        self._map_label_font = pygame.font.Font(None, 32)
+
+        # XP popup — shown briefly after winning combat
+        self.xp_popup_timer = 0
+        self.xp_popup_text  = ""
+        self._xp_popup_font = pygame.font.Font(None, 36)
+
     # -------------------------------------------------------------------------
     # Events
     # -------------------------------------------------------------------------
@@ -102,6 +111,7 @@ class Game:
                             tilemap_handler.transition_to_map(
                                 t_tile.target_map, t_tile.dest_x, t_tile.dest_y
                             )
+                            self.map_label_timer = 180
                             break
 
                 # --- Save / Load ---
@@ -133,8 +143,12 @@ class Game:
                     )
                     if result == "victory":
                         # Enemy is already killed inside handle_click (enemy.kill())
+                        xp_gained = self.current_enemy.exp_on_kill if self.current_enemy else 0
+                        self.xp_popup_text = f"+{xp_gained} XP"
+                        self.xp_popup_timer = 120  # 2 seconds at 60 FPS
                         self.game_state = "playing"
                         self.combat.transition_finished = False
+                        self.combat.floaters.clear()
                         self.current_enemy = None
                     elif result == "game_over":
                         print("Game Over")
@@ -143,6 +157,7 @@ class Game:
                         self.current_enemy.reset_to_spawn()
                         self.game_state = "playing"
                         self.combat.transition_finished = False
+                        self.combat.floaters.clear()
                         self.current_enemy = None
                     elif result == "open_inventory":
                         self.previous_state = "combat"
@@ -237,6 +252,19 @@ class Game:
         for t_tile in tilemap_handler.transition_sprite_group.sprites():
             if t_tile.is_player_on_tile(tilemap_handler.player_character.rect):
                 t_tile.draw_prompt(screen, self.camera.offset)
+
+        # 7 — Map name label (top-right, fades after a few seconds)
+        if self.map_label_timer > 0:
+            map_name = tilemap_handler.current_map.replace('_', ' ').title()
+            label = self._map_label_font.render(map_name, True, (255, 220, 80))
+            screen.blit(label, (WINDOW_WIDTH - label.get_width() - 12, 12))
+            self.map_label_timer -= 1
+
+        # 8 — XP popup (gold text, center-top, after combat victory)
+        if self.xp_popup_timer > 0:
+            xp_surf = self._xp_popup_font.render(self.xp_popup_text, True, (255, 215, 0))
+            screen.blit(xp_surf, (WINDOW_WIDTH // 2 - xp_surf.get_width() // 2, 120))
+            self.xp_popup_timer -= 1
 
     def draw_dialogue_overlays(self):
         """

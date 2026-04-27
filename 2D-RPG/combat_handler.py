@@ -49,9 +49,13 @@ class CombatHandler(pygame.sprite.Sprite):
         self.transition_finished = False   # True after circle reaches 0 (menu can render)
 
         self.button_font = pygame.font.Font(None, 48)
+        self.float_font   = pygame.font.Font(None, 40)
         self.fight_button = None
         self.items_button = None
         self.run_button   = None
+
+        # Floating text system — list of {"text", "color", "x", "y", "timer"}
+        self.floaters = []
     # -------------------------------------------------------------------------
     # Transition
     # -------------------------------------------------------------------------
@@ -161,7 +165,7 @@ class CombatHandler(pygame.sprite.Sprite):
         bar_x = WINDOW_WIDTH // 1.5 + 50
         bar_y = WINDOW_HEIGHT // 6.25 - 30
         pygame.draw.rect(screen, RED, (bar_x, bar_y, bar_width, bar_height))
-        health_percent = enemy.health / 100
+        health_percent = enemy.health / enemy.max_health
         pygame.draw.rect(screen, GREEN, (bar_x, bar_y, bar_width * health_percent, bar_height))
         font = pygame.font.Font(None, 36)
         health_text = font.render("Health", True, BLACK)
@@ -187,17 +191,25 @@ class CombatHandler(pygame.sprite.Sprite):
         run_text   = self.button_font.render("Run",   True, (255, 165, 0))
         screen.blit(fight_text, fight_text.get_rect(center=self.fight_button.center))
         screen.blit(items_text, items_text.get_rect(center=self.items_button.center))
-        screen.blit(run_text,   run_text.get_rect(center=self.run_button.center)) 
+        screen.blit(run_text,   run_text.get_rect(center=self.run_button.center))
+
+        # Draw floating damage / XP text
+        for f in self.floaters:
+            surf = self.float_font.render(f["text"], True, f["color"])
+            screen.blit(surf, (int(f["x"]), int(f["y"])))
+            f["y"] -= 1   # float upward
+            f["timer"] -= 1
+        self.floaters = [f for f in self.floaters if f["timer"] > 0]
+
     def handle_click(self, mouse_pos, player, enemy, inventory):
-        print(f"DEBUG: handle_click called with mouse_pos: {mouse_pos}")
-        print(f"DEBUG: self.fight_button = {self.fight_button}")
         if self.fight_button and self.fight_button.collidepoint(mouse_pos):
-            print("DEBUG: Fight button clicked")
             player_attack = player.get_attack()
             enemy_defense = getattr(enemy, 'defense', 0)
             damage = max(1, player_attack - enemy_defense)
             enemy.health -= damage
-            print(f"DEBUG: Player attack {player_attack}, enemy defense {enemy_defense}, damage {damage}, enemy health now {enemy.health}")
+            # Damage floater on enemy (right side)
+            self.floaters.append({"text": f"-{damage}", "color": (255, 60, 60),
+                                  "x": WINDOW_WIDTH // 1.5 + 80, "y": WINDOW_HEIGHT // 6.25 - 60, "timer": 60})
             if enemy.health <= 0:
                 player.exp += enemy.exp_on_kill
                 enemy.kill()
@@ -207,15 +219,14 @@ class CombatHandler(pygame.sprite.Sprite):
                 player_defense = player.get_defense()
                 enemy_damage = max(1, enemy_attack - player_defense)
                 player.take_damage(enemy_damage)
-                print(f"DEBUG: Enemy attack {enemy_attack}, player defense {player_defense}, enemy damage {enemy_damage}, player health now {player.health}")
+                # Damage floater on player (left side)
+                self.floaters.append({"text": f"-{enemy_damage}", "color": (255, 80, 80),
+                                      "x": WINDOW_WIDTH // 6 + 40, "y": WINDOW_HEIGHT // 3.5 - 40, "timer": 60})
                 if player.health <= 0:
                     return "game_over"
                 return "turn_done"
         elif self.items_button and self.items_button.collidepoint(mouse_pos):
-            print("DEBUG: Items button clicked")
             return "open_inventory"
         elif self.run_button and self.run_button.collidepoint(mouse_pos):
-            print("DEBUG: Run button clicked")
             return "run"
-        print("DEBUG: No button clicked")
         return None

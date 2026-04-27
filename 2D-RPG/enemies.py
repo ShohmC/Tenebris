@@ -80,6 +80,7 @@ class Enemies(pygame.sprite.Sprite):
         self.speed    = 2   # Pixels per frame (not dt-scaled — consider scaling for consistency)
 
         # --- Stats ---
+        self.max_health  = health
         self.health      = health
         self.damage      = damage
         self.exp_on_kill = exp_on_kill   # XP awarded to player on defeat (not yet implemented)
@@ -216,6 +217,7 @@ class Enemies(pygame.sprite.Sprite):
         """
         self.rect.x = self.initial_x_location
         self.rect.y = self.initial_y_location
+        self.health = self.max_health
         self.initiate_battle_sequence = False
         self.battle_cooldown = cooldown_frames
 
