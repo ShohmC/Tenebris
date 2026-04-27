@@ -88,6 +88,10 @@ class Enemies(pygame.sprite.Sprite):
         self.previous_x_location = self.rect.x
         self.previous_y_location = self.rect.y
 
+        # Battle cooldown — when > 0, enemy won't chase or trigger combat.
+        # Decremented each frame in update_movement(). Set by reset_to_spawn().
+        self.battle_cooldown = 0
+
         # Per-direction animation counters (same 0–19 cycle as Player).
         self.up_counter    = 0
         self.down_counter  = 0
@@ -153,7 +157,8 @@ class Enemies(pygame.sprite.Sprite):
             self.rect.move_ip(-self.velocity.x, -self.velocity.y)
             self.velocity.update(-1, -1)
         if pygame.sprite.spritecollideany(self, player_collision_group):
-            self.initiate_battle_sequence = True
+            if self.battle_cooldown <= 0:
+                self.initiate_battle_sequence = True
 
     # -------------------------------------------------------------------------
     # AI / Movement
@@ -174,6 +179,11 @@ class Enemies(pygame.sprite.Sprite):
 
         Called from Game.update() for every enemy each frame.
         """
+        # Tick down battle cooldown
+        if self.battle_cooldown > 0:
+            self.battle_cooldown -= 1
+            return  # Don't chase while on cooldown
+
         direction = pygame.math.Vector2(
             player_rect.x - self.rect.x,
             player_rect.y - self.rect.y
@@ -190,6 +200,24 @@ class Enemies(pygame.sprite.Sprite):
 
             self.rect.move_ip(self.velocity)
             self.animation()
+
+    # -------------------------------------------------------------------------
+    # Run from battle — reset enemy to spawn and start cooldown
+    # -------------------------------------------------------------------------
+
+    def reset_to_spawn(self, cooldown_frames=180):
+        """
+        Teleports the enemy back to its original spawn location and starts a
+        cooldown during which it won't chase or trigger combat.
+
+        Parameters
+        ----------
+        cooldown_frames : int — number of frames to stay passive (180 ≈ 3 sec at 60 FPS)
+        """
+        self.rect.x = self.initial_x_location
+        self.rect.y = self.initial_y_location
+        self.initiate_battle_sequence = False
+        self.battle_cooldown = cooldown_frames
 
 
 # =============================================================================

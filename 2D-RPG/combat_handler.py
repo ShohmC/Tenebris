@@ -51,6 +51,7 @@ class CombatHandler(pygame.sprite.Sprite):
         self.button_font = pygame.font.Font(None, 48)
         self.fight_button = None
         self.items_button = None
+        self.run_button   = None
     # -------------------------------------------------------------------------
     # Transition
     # -------------------------------------------------------------------------
@@ -166,17 +167,27 @@ class CombatHandler(pygame.sprite.Sprite):
         health_text = font.render("Health", True, BLACK)
         screen.blit(health_text, (bar_x, bar_y - 25))
     
-        self.fight_button = pygame.Rect(fight_x, fight_y, 250, 100)
-        self.items_button = pygame.Rect(items_x, fight_y, 250, 100)
-        print(f"DEBUG: Fight button rect: {self.fight_button}")  
-        pygame.draw.rect(screen, BLACK, self.fight_button)
-        pygame.draw.rect(screen, BLACK, self.items_button)
-        pygame.draw.rect(screen, GREEN, self.fight_button, 4)
-        pygame.draw.rect(screen, BLUE,  self.items_button, 4)
+        btn_w = 170
+        btn_h = 80
+        btn_gap = 20
+        total_w = btn_w * 3 + btn_gap * 2
+        btn_x_start = (WINDOW_WIDTH - total_w) // 2
+        btn_y = WINDOW_HEIGHT // 1.5
+
+        self.fight_button = pygame.Rect(btn_x_start, btn_y, btn_w, btn_h)
+        self.items_button = pygame.Rect(btn_x_start + btn_w + btn_gap, btn_y, btn_w, btn_h)
+        self.run_button   = pygame.Rect(btn_x_start + (btn_w + btn_gap) * 2, btn_y, btn_w, btn_h)
+
+        for btn, border_color in [(self.fight_button, GREEN), (self.items_button, BLUE), (self.run_button, (255, 165, 0))]:
+            pygame.draw.rect(screen, BLACK, btn)
+            pygame.draw.rect(screen, border_color, btn, 4)
+
         fight_text = self.button_font.render("Fight", True, (255, 0, 0))
         items_text = self.button_font.render("Items", True, (0, 255, 0))
+        run_text   = self.button_font.render("Run",   True, (255, 165, 0))
         screen.blit(fight_text, fight_text.get_rect(center=self.fight_button.center))
-        screen.blit(items_text, items_text.get_rect(center=self.items_button.center)) 
+        screen.blit(items_text, items_text.get_rect(center=self.items_button.center))
+        screen.blit(run_text,   run_text.get_rect(center=self.run_button.center)) 
     def handle_click(self, mouse_pos, player, enemy, inventory):
         print(f"DEBUG: handle_click called with mouse_pos: {mouse_pos}")
         print(f"DEBUG: self.fight_button = {self.fight_button}")
@@ -203,5 +214,8 @@ class CombatHandler(pygame.sprite.Sprite):
         elif self.items_button and self.items_button.collidepoint(mouse_pos):
             print("DEBUG: Items button clicked")
             return "open_inventory"
+        elif self.run_button and self.run_button.collidepoint(mouse_pos):
+            print("DEBUG: Run button clicked")
+            return "run"
         print("DEBUG: No button clicked")
         return None

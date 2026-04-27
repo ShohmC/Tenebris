@@ -139,6 +139,11 @@ class Game:
                     elif result == "game_over":
                         print("Game Over")
                         self.running = False
+                    elif result == "run":
+                        self.current_enemy.reset_to_spawn()
+                        self.game_state = "playing"
+                        self.combat.transition_finished = False
+                        self.current_enemy = None
                     elif result == "open_inventory":
                         self.previous_state = "combat"
                         self.game_state = "inventory"
