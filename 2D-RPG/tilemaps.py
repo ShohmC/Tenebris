@@ -4,42 +4,115 @@
 # Each tilemap is a Python list of strings. TilemapHandler iterates over these
 # in (row, column) order to place tiles and spawn entities.
 #
-# Each character is one tile cell (TILESIZE × TILESIZE pixels).
-# TilemapHandler.create_*_tilemap() defines what each letter means.
-#
-# Current character legend (defined in tilemap_handler.py):
-#   '.'  — Empty (only grass rendered underneath)
+# Character legend (defined in tilemap_handler.py):
+#   '.'  — Empty (grass base only)
 #   'P'  — Player spawn point
 #   'E'  — Enemy (Bat) spawn point
-#   'D'  — Dirt tile (non-collision)
-#   'T'  — Tree tile (collision)
-#   'C'  — Chest (collision, interactive)
-#   'W'  — Water tile (not yet wired up in handler)
-#   'M', 'F', 'L', '2', '8', 't', 'N' — Referenced in some maps but not yet
-#          handled in create_*_tilemap() — placeholders for future tiles/NPCs.
+#   'D'  — Dirt tile (walkable, non-collision)
+#   'T'  — Tree tile (collision wall)
+#   'C'  — Chest tile (collision, visual)
+#   'N'  — NPC spawn (assigned top-to-bottom/left-to-right to NPC_CONFIGS list)
+#   'h'  — WorldItem: Health Potion (contact pickup)
+#   's'  — WorldItem: Speed Boost   (contact pickup)
+#   'a'  — WorldItem: Antidote      (contact pickup)
+#   'W'  — Water tile (handler support pending)
 #
 # ADDING A NEW MAP:
-#   1. Define a new list of strings here (keep all rows the same length).
-#   2. Add a create_newmap_tilemap() method in TilemapHandler that iterates it.
-#   3. Call that method from Game or a transition tile.
+#   1. Define a list of strings here.
+#   2. Add create_*_map() in tilemap_handler.py.
+#   3. Update this legend.
+#   4. Call it from Game.main().
 # =============================================================================
 
 
-# --- Active test map used by create_test_tilemap() ---
-# Small 6-row map, mainly to test enemy AI and combat flow.
-# Row 4 is a long dirt path; row 5 has trees acting as walls.
+# =============================================================================
+# TUTORIAL_MAP
+# =============================================================================
+# Intended player flow (south → north):
+#
+#   [P] Spawn (row 15)
+#    ↓  open grass
+#   [N] Village Guide (row 13, west side) — explains movement, combat, items
+#    →  [E] Bat enemy (row 13, east side) — first combat encounter
+#    ↓  (after victory, path opens north)
+#   [h] Health Potion on the ground (row 11) — reward / refuel after fight
+#    ↓  dirt path merges from a fork
+#   ←→  forking path: left branch straight up, right branch holds [s] Speed Boost
+#    ↓  path leads into the Inner Sanctum
+#   [N] Elder Mage (row 4) — explains chests and advanced mechanics
+#   [C] Chest (row 4) — interactive object tutorial
+#   [a] Antidote (row 5) — status effect item tutorial
+#
+# Teaching moments in order:
+#   1. Movement (WASD)
+#   2. NPC dialogue (E key)
+#   3. Turn-based combat (Fight / Items buttons)
+#   4. Ground item pickup (walk over glowing item)
+#   5. Inventory (I key)
+#   6. Environmental navigation (branching paths)
+#   7. Chests and status items
+# =============================================================================
+
+TUTORIAL_MAP = [
+    # row  0 — north boundary wall
+    'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
+    # row  1 — inner wall (creates sanctum "ceiling")
+    'T....................................T',
+    # row  2 — sanctum top: dirt floor begins
+    'T....DDDDDDDDDDDDDDDDDDDDDDDDDDD.....T',
+    # row  3 — sanctum interior (open space)
+    'T....D.........................D.....T',
+    # row  4 — Elder Mage NPC (col 13) + Chest (col 25)
+    'T....D.......N...........C.....D.....T',
+    # row  5 — Antidote sits near the chest (col 25 area)
+    'T....D.......................a..D.....T',
+    # row  6 — sanctum south wall; path forks below here
+    'T....DDDDDDDDDDDDD....DDDDDDDDD......T',
+    # row  7 — left branch col ~13, right branch col ~22
+    'T............D........D..............T',
+    # row  8 — Speed Boost on right branch (col ~29)
+    'T............D........D......s.......T',
+    # row  9
+    'T............D........D..............T',
+    # row 10 — both branches merge back to single column
+    'T............DDDDDDDDDD..............T',
+    # row 11 — Health Potion on open grass (col ~19) — post-fight reward
+    'T..................h..................T',
+    # row 12 — open corridor
+    'T....................................T',
+    # row 13 — COMBAT ROW: Village Guide (col 5) warns the player,
+    #           Bat enemy (col 28) blocks the northward path.
+    #           Player must win the fight to safely explore north.
+    'T....N.....................E.........T',
+    # row 14 — open approach area
+    'T....................................T',
+    # row 15 — player spawn (col 19)
+    'T.................P..................T',
+    # row 16 — buffer before south wall
+    'T....................................T',
+    # row 17 — south boundary wall
+    'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
+]
+
+
+# =============================================================================
+# TEST_TILEMAP_1 — Original small combat test map
+# =============================================================================
+
 TEST_TILEMAP_1 = [
     '.............................................',
     '.............................................',
-    '....................E........................',   # Bat spawns here
+    '....................E........................',
     '..............................................',
-    'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDPDDDDD',  # P = player start
-    'TTTTTTTDDD........TTT.TTTTTTTTT.....TTTTDDDDDD'   # Trees = collision walls
+    'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDPDDDDD',
+    'TTTTTTTDDD........TTT.TTTTTTTTT.....TTTTDDDDDD',
 ]
 
-# --- Tutorial map used by create_tutorial_tilemap() ---
-# Larger map with a diamond/path layout and chests.
-# 'C' = chest, 'M'/'F' = not yet implemented (NPC/feature placeholders?)
+
+# =============================================================================
+# TUTORIAL_TILEMAP — Legacy diamond-path layout (kept for reference)
+# =============================================================================
+
 TUTORIAL_TILEMAP = [
     'TTTTTTTTTTTTTTTTTTTTtTTTTTTTTTTTTTTTTTTTT',
     'TTTTTTTTTTTTTTTTTTTTDTTTTTTTTTTTTTTTTTTTT',
@@ -48,8 +121,8 @@ TUTORIAL_TILEMAP = [
     '...................DDD...................',
     '.................DD...DD.................',
     '................DD.....DD................',
-    '...............DD.......DD..M.C..........',   # M = unhandled, C = Chest
-    '..............DD..F......DD..............',   # F = unhandled
+    '...............DD.......DD..M.C..........',
+    '..............DD..F......DD..............',
     '.............D.............D.............',
     'DDDDDDDDDDDDDD.............DDDDDDDDDDDDMD',
     'DDDDMDDDDDDDDD.............DDDDDDDDDDDDDD',
@@ -64,12 +137,14 @@ TUTORIAL_TILEMAP = [
     '...................D..D..................',
     '.........................................',
     '......................D..................',
-    '................D...P....................',   # P = player spawn
+    '................D...P....................',
 ]
 
-# --- Extended map (not yet connected to a create_ method in handler) ---
-# Contains '8', '2', 'W', 'L', 'N' characters — these would need handling
-# added to TilemapHandler before this map is usable.
+
+# =============================================================================
+# TILEMAP / TILEMAP2 — Extended / scratch maps (not yet connected to handler)
+# =============================================================================
+
 TILEMAP = [
     '..................DD8...................',
     '..................DD8...................',
@@ -103,7 +178,6 @@ TILEMAP = [
     't.................DP8WWWWWWWWWWWWWWWWWWW',
 ]
 
-# --- Minimal test map (unused) ---
 TILEMAP2 = [
     '.......',
     '...P....................t',
