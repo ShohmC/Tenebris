@@ -54,10 +54,10 @@
 # =============================================================================
 
 TUTORIAL_MAP = [
-    # row  0 — north boundary wall
-    'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
-    # row  1 — inner wall (creates sanctum "ceiling")
-    'T....................................T',
+    # row  0 — north boundary wall (gap at cols 20-21 for map transition)
+    'TTTTTTTTTTTTTTTTTTTT..TTTTTTTTTTTTTTTT',
+    # row  1 — transition gateway at cols 20-21
+    'T...................DD...............T',
     # row  2 — sanctum top: dirt floor begins
     'T....DDDDDDDDDDDDDDDDDDDDDDDDDDD.....T',
     # row  3 — sanctum interior (open space)

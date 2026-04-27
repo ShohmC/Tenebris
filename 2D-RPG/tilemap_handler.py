@@ -29,10 +29,12 @@ from tilemaps   import *       # All tilemap strings
 # Each entry: (tile_col, tile_row, target_map_name, dest_col, dest_row)
 TRANSITION_DEFINITIONS = {
     "tutorial": [
-        (20, 0, "test", 42, 3),    # top gate leads to test map
+        (20, 1, "test", 42, 3),    # top gate leads to test map (left tile)
+        (21, 1, "test", 42, 3),    # top gate leads to test map (right tile)
     ],
     "test": [
-        (0, 4, "tutorial", 20, 15),  # left edge leads back to tutorial spawn area
+        (0, 3, "tutorial", 20, 15),  # left edge leads back to tutorial (upper tile)
+        (0, 4, "tutorial", 20, 15),  # left edge leads back to tutorial (lower tile)
     ],
 }
 
@@ -133,6 +135,7 @@ class TilemapHandler(pygame.sprite.Sprite):
                 # First 'N' in scan order: row 4 — Elder Mage in the Inner Sanctum
                 "name": "Elder Mage",
                 "color": (180, 100, 240),
+                "image_path": "Player/npc_default.png",
                 "dialogue_lines": [
                     "You made it through the Bat. I knew you had what it takes.",
                     "The chest beside me is yours — a reward for your courage.",
@@ -145,6 +148,7 @@ class TilemapHandler(pygame.sprite.Sprite):
                 # Second 'N' in scan order: row 13 — Village Guide near spawn
                 "name": "Village Guide",
                 "color": (90, 200, 120),
+                "image_path": "Player/npc_default.png",
                 "dialogue_lines": [
                     "Welcome! Press [W][A][S][D] to move around.",
                     "There is a dangerous Bat lurking to the east — be careful!",
@@ -200,6 +204,7 @@ class TilemapHandler(pygame.sprite.Sprite):
                             name           = cfg["name"],
                             dialogue_lines = cfg["dialogue_lines"],
                             color          = cfg["color"],
+                            image_path     = cfg.get("image_path"),
                         )
                         self.npc_sprite_group.add(npc)
                     npc_count += 1
