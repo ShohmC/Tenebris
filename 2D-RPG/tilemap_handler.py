@@ -2,52 +2,28 @@
 # tilemap_handler.py — Map Builder & Sprite Group Manager
 # =============================================================================
 # TilemapHandler is the central hub for the game world. It:
-#   1. Owns ALL sprite groups (tiles, player, enemies, NPCs, chests, items)
-#   2. Parses ASCII tilemaps (from tilemaps.py) to create Tile/Player/Enemy sprites
-#   3. Exposes player_character so other systems (camera, enemies, combat) can
-#      reference the player directly
+#   1. Owns ALL sprite groups
+#   2. Parses ASCII tilemaps to create Tile / Player / Enemy / NPC / WorldItem sprites
+#   3. Exposes player_character for camera, enemy AI, and combat systems
 #
-# The global `tilemap_handler` instance is created in main.py and referenced
-# everywhere via that module-level name.
+# ADDING A NEW MAP:
+#   1. Add a map string to tilemaps.py.
+#   2. Add a create_*_map() method here following the create_tutorial_map() pattern.
+#   3. Register it in MAP_LOADERS at the bottom of this file.
+#   4. Call it from Game.main().
 #
-# Sprite groups used:
-#   tile_sprite_group           — all visual tiles (drawn by camera in Game.draw_world)
-#   collision_tile_sprite_group — solid tiles (used by player & enemy collision checks)
-#   enemy_sprite_group          — all active enemies (iterated in Game.update)
-#   collision_enemy_sprite_group— enemies as collision targets for the player
-#   npc_sprite_group            — NPCs (not yet implemented)
-#   chest_sprite_group          — interactive chests
-#   item_sprite_group           — dropped items (not yet implemented)
-#   player_sprite_group         — single-element group containing the player
+# ADDING A NEW TILE CHARACTER:
+#   1. Add the image path to tiles_dictionary in config.py (if needed).
+#   2. Handle the character in the relevant create_*_map() loop below.
+#   3. Document it in tilemaps.py's legend comment.
 # =============================================================================
 
-from enemies import Bat
-from tiles import *      # Tile class + config imports (includes TransitionTile)
-from player import *     # Player class
-from npc import NPC
-from tilemaps import *   # TEST_TILEMAP_1, TUTORIAL_TILEMAP, etc.
-
-# NPC definitions — keyed by map name.
-# Each entry: (tile_col, tile_row, name, dialogue_lines, image_path)
-NPC_DEFINITIONS = {
-    "tutorial": [
-        (16, 23, "Elder", [
-            "Welcome, traveler, to the village of Tenebris.",
-            "Dark creatures have been spotted in the eastern forest.",
-            "Head through the gate to the east if you dare.",
-        ], "Player/npc_default.png"),
-        (12, 8, "Merchant", [
-            "I have potions for sale... well, not yet.",
-            "Check your inventory with I — you might have some already.",
-        ], "Player/npc_default.png"),
-    ],
-    "test": [
-        (10, 3, "Scout", [
-            "Watch out! Bats lurk in these woods.",
-            "Press F on the dirt path at the far left to return to the village.",
-        ], "Player/npc_default.png"),
-    ],
-}
+from enemies    import Bat
+from npc        import NPC
+from world_item import WorldItem
+from tiles      import *       # Tile, TransitionTile + config (TILESIZE, tiles_dictionary, etc.)
+from player     import *       # Player class
+from tilemaps   import *       # All tilemap strings
 
 # Transition tile definitions — keyed by map name.
 # Each entry: (tile_col, tile_row, target_map_name, dest_col, dest_row)
@@ -56,32 +32,22 @@ TRANSITION_DEFINITIONS = {
         (20, 0, "test", 42, 3),    # top gate leads to test map
     ],
     "test": [
-        (0, 4, "tutorial", 20, 1),  # left edge leads back to tutorial
+        (0, 4, "tutorial", 20, 15),  # left edge leads back to tutorial spawn area
     ],
 }
 
-class TilemapHandler(pygame.sprite.Sprite):
-    """
-    Parses tilemap strings into sprite objects and manages all sprite groups.
 
-    The create_*_tilemap() methods are the entry points — call one to populate
-    the world before the game loop starts.
-    """
+class TilemapHandler(pygame.sprite.Sprite):
 
     def __init__(self, screen):
         pygame.sprite.Sprite.__init__(self)
         self.screen = screen
 
-        # --- Tilemap State Flags ---
-        # Track which map is currently active for transition logic.
-        # (Transition system in update() is currently a stub — see below.)
         self.tutorial_tilemap_boolean = True
         self.tilemap_boolean          = False
         self.tilemap_boolean_2        = False
 
-        # --- Sprite Groups ---
-        # LayeredUpdates is a group that draws sprites in layer order.
-        # See: https://www.pygame.org/docs/ref/sprite.html#pygame.sprite.LayeredUpdates
+        # LayeredUpdates draws in ascending layer order.
         self.tile_sprite_group            = pygame.sprite.LayeredUpdates()
         self.collision_tile_sprite_group  = pygame.sprite.LayeredUpdates()
         self.enemy_sprite_group           = pygame.sprite.LayeredUpdates()
@@ -99,51 +65,21 @@ class TilemapHandler(pygame.sprite.Sprite):
     # Helpers
     # -------------------------------------------------------------------------
 
-    def draw_tile(self, column, tile_letter, j, i, image, layer, is_a_collision_tile, tile_size_multiplier):
-        """
-        Creates a Tile sprite at grid position (j, i) if `column` matches
-        `tile_letter`, then adds it to tile_sprite_group. Optionally also
-        adds it to collision_tile_sprite_group.
-
-        Parameters
-        ----------
-        column              : str  — the character at position (j, i) in the tilemap string
-        tile_letter         : str  — the character this call is responsible for (e.g. "T" for trees)
-        j, i                : int  — column and row index in the tilemap
-        image               : str  — asset path from tiles_dictionary
-        layer               : int  — draw layer
-        is_a_collision_tile : bool — whether this tile should block movement
-        tile_size_multiplier: int  — scale factor passed to Tile
-        """
+    def draw_tile(self, column, tile_letter, j, i, image, layer,
+                  is_a_collision_tile, tile_size_multiplier):
+        """Creates a Tile at grid (j, i) if column matches tile_letter."""
         if column == tile_letter:
-            tile_name = Tile(self.screen, j * TILESIZE, i * TILESIZE, image, layer, tile_size_multiplier)
-            self.tile_sprite_group.add(tile_name)
+            tile = Tile(self.screen, j * TILESIZE, i * TILESIZE,
+                        image, layer, tile_size_multiplier)
+            self.tile_sprite_group.add(tile)
             if is_a_collision_tile:
-                self.collision_tile_sprite_group.add(tile_name)
+                self.collision_tile_sprite_group.add(tile)
 
-    def spawn_enemy(self, enemy_name, j, i, health):
-        """
-        Convenience method to spawn any enemy subclass at a grid position.
-        Adds the enemy to both the enemy group and the collision group.
-
-        NOTE: This method exists but create_test_tilemap() spawns Bat directly
-        rather than using this helper. Consider standardizing.
-        """
-        enemy = enemy_name(self.screen, j * TILESIZE, i * TILESIZE, health)
+    def spawn_enemy(self, enemy_class, j, i, health):
+        """Spawns an enemy at grid (j, i) into both enemy groups."""
+        enemy = enemy_class(self.screen, j * TILESIZE, i * TILESIZE, health)
         self.enemy_sprite_group.add(enemy)
         self.collision_enemy_sprite_group.add(enemy)
-
-    def spawn_npcs(self, map_name):
-        """
-        Spawns NPCs defined in NPC_DEFINITIONS for the given map.
-        Adds each NPC to both tile_sprite_group (for drawing) and npc_sprite_group
-        (for interaction checks) and collision_tile_sprite_group (so player can't walk through).
-        """
-        for col, row, name, dialogue, img in NPC_DEFINITIONS.get(map_name, []):
-            npc = NPC(self.screen, col * TILESIZE, row * TILESIZE, name, dialogue, img)
-            self.tile_sprite_group.add(npc)
-            self.npc_sprite_group.add(npc)
-            self.collision_tile_sprite_group.add(npc)
 
     def spawn_transitions(self, map_name):
         """
@@ -163,25 +99,138 @@ class TilemapHandler(pygame.sprite.Sprite):
     # Map Loaders
     # -------------------------------------------------------------------------
 
-    def create_test_tilemap(self, preserve_player=False):
+    def create_tutorial_map(self, preserve_player=False):
         """
-        Parses TEST_TILEMAP_1 and populates all sprite groups.
+        Parses TUTORIAL_MAP and populates all sprite groups.
 
-        For every cell in the map:
-          • A grass tile is always placed as the base layer.
-          • Additional tiles (Dirt, Tree) are placed on top if the character matches.
-          • 'P' spawns the player and stores a reference in self.player_character.
-          • 'E' spawns a Bat enemy.
+        Character handling:
+          'T'  — Tree tile  (collision)
+          'D'  — Dirt tile  (walkable)
+          'C'  — Chest tile (collision; TODO: replace with Chest() class)
+          'P'  — Player spawn
+          'E'  — Bat enemy (added to enemy_sprite_group + collision_enemy_sprite_group)
+          'N'  — NPC (assigned in scan order from NPC_CONFIGS)
+          'h'  — WorldItem: Health Potion
+          's'  — WorldItem: Speed Boost
+          'a'  — WorldItem: Antidote
 
         If preserve_player is True, the existing player_character is kept and
         re-added to the group instead of creating a new one (used during transitions).
         """
+        from items import health_potion, speed_boost_item, antidote
+        old_player = self.player_character if preserve_player and hasattr(self, 'player_character') else None
+        self.clear_all_tiles()
+        self.current_map = "tutorial"
+        self.tutorial_tilemap_boolean = True
+
+        # ------------------------------------------------------------------
+        # NPC configuration table
+        # NPCs are assigned in top-to-bottom / left-to-right scan order.
+        # Append a new dict here to add another NPC without touching the loop.
+        # ------------------------------------------------------------------
+        NPC_CONFIGS = [
+            {
+                # First 'N' in scan order: row 4 — Elder Mage in the Inner Sanctum
+                "name": "Elder Mage",
+                "color": (180, 100, 240),
+                "dialogue_lines": [
+                    "You made it through the Bat. I knew you had what it takes.",
+                    "The chest beside me is yours — a reward for your courage.",
+                    "The Antidote nearby cures poison. Keep it close.",
+                    "Open your inventory with [I] any time to use your items.",
+                    "There are greater dangers ahead. Train well, traveler.",
+                ],
+            },
+            {
+                # Second 'N' in scan order: row 13 — Village Guide near spawn
+                "name": "Village Guide",
+                "color": (90, 200, 120),
+                "dialogue_lines": [
+                    "Welcome! Press [W][A][S][D] to move around.",
+                    "There is a dangerous Bat lurking to the east — be careful!",
+                    "Walk into it to start a turn-based fight.",
+                    "In combat: click Fight to attack, or Items to use a potion.",
+                    "There is a Health Potion to the north — grab it before the Bat!",
+                ],
+            },
+        ]
+
+        npc_count = 0
+
+        for i, row in enumerate(TUTORIAL_MAP):
+            for j, column in enumerate(row):
+
+                # Base grass — rendered under every cell
+                grass = Tile(self.screen, j * TILESIZE, i * TILESIZE,
+                             tiles_dictionary["Grass Tile"], GRASS_LAYER, TILESIZE_MULTIPLIER)
+                self.tile_sprite_group.add(grass)
+
+                # --- Player ---
+                if column == "P" and old_player is None:
+                    self.player_character = Player(
+                        self.screen, j * TILESIZE, i * TILESIZE
+                    )
+                    self.player_sprite_group.add(self.player_character)
+
+                # --- Structural tiles ---
+                self.draw_tile(column, "T", j, i,
+                               tiles_dictionary["Tree Tile"], 2, True,  TILESIZE_MULTIPLIER)
+                self.draw_tile(column, "D", j, i,
+                               tiles_dictionary["Dirt Tile"], 2, False, TILESIZE_MULTIPLIER)
+                # Chest — visual + collision.
+                # TODO: swap draw_tile() for a Chest() instantiation and add to
+                # chest_sprite_group when a Chest class with on_chest_open() exists.
+                self.draw_tile(column, "C", j, i,
+                               tiles_dictionary["Chests"], 2, True,    TILESIZE_MULTIPLIER)
+
+                # --- Enemy spawn ---
+                # 'E' spawns a Bat with 60 HP (lower than the test map's 100
+                # so a new player can realistically win the tutorial fight).
+                if column == "E":
+                    self.spawn_enemy(Bat, j, i, 60)
+
+                # --- NPC spawn ---
+                if column == "N":
+                    if npc_count < len(NPC_CONFIGS):
+                        cfg = NPC_CONFIGS[npc_count]
+                        npc = NPC(
+                            screen         = self.screen,
+                            x              = j * TILESIZE,
+                            y              = i * TILESIZE,
+                            name           = cfg["name"],
+                            dialogue_lines = cfg["dialogue_lines"],
+                            color          = cfg["color"],
+                        )
+                        self.npc_sprite_group.add(npc)
+                    npc_count += 1
+
+                # --- World item spawns ---
+                if column == "h":
+                    self.item_sprite_group.add(
+                        WorldItem(self.screen, j * TILESIZE, i * TILESIZE, health_potion)
+                    )
+                elif column == "s":
+                    self.item_sprite_group.add(
+                        WorldItem(self.screen, j * TILESIZE, i * TILESIZE, speed_boost_item)
+                    )
+                elif column == "a":
+                    self.item_sprite_group.add(
+                        WorldItem(self.screen, j * TILESIZE, i * TILESIZE, antidote)
+                    )
+
+        if old_player is not None:
+            self.player_character = old_player
+            self.player_sprite_group.add(self.player_character)
+
+        self.spawn_transitions("tutorial")
+
+    def create_test_tilemap(self, preserve_player=False):
+        """Parses TEST_TILEMAP_1. Original combat test map."""
         old_player = self.player_character if preserve_player and hasattr(self, 'player_character') else None
         self.clear_all_tiles()
         self.current_map = "test"
         for i, row in enumerate(TEST_TILEMAP_1):
             for j, column in enumerate(row):
-                # Base grass layer — placed for every cell regardless of character.
                 grass_tiles = Tile(self.screen, j * TILESIZE, i * TILESIZE,
                                    tiles_dictionary["Grass Tile"], GRASS_LAYER, TILESIZE_MULTIPLIER)
                 self.tile_sprite_group.add(grass_tiles)
@@ -193,27 +242,24 @@ class TilemapHandler(pygame.sprite.Sprite):
                 if column == "E":
                     bat = Bat(self.screen, j * TILESIZE, i * TILESIZE, 100)
                     self.enemy_sprite_group.add(bat)
+                    self.collision_enemy_sprite_group.add(bat)
 
-                self.draw_tile(column, "D", j, i, tiles_dictionary["Dirt Tile"], 2, False, TILESIZE_MULTIPLIER)
-                self.draw_tile(column, "T", j, i, tiles_dictionary["Tree Tile"], 2, True,  TILESIZE_MULTIPLIER)
+                self.draw_tile(column, "D", j, i,
+                               tiles_dictionary["Dirt Tile"], 2, False, TILESIZE_MULTIPLIER)
+                self.draw_tile(column, "T", j, i,
+                               tiles_dictionary["Tree Tile"], 2, True,  TILESIZE_MULTIPLIER)
 
         if old_player is not None:
             self.player_character = old_player
             self.player_sprite_group.add(self.player_character)
 
-        self.spawn_npcs("test")
         self.spawn_transitions("test")
 
     def create_tutorial_tilemap(self, preserve_player=False):
-        """
-        Parses TUTORIAL_TILEMAP. Same structure as create_test_tilemap() but
-        includes Chest tiles ('C') and no enemies.
-
-        If preserve_player is True, the existing player_character is kept.
-        """
+        """Legacy diamond-path layout. Kept for backwards compatibility."""
         old_player = self.player_character if preserve_player and hasattr(self, 'player_character') else None
         self.clear_all_tiles()
-        self.current_map = "tutorial"
+        self.current_map = "tutorial_legacy"
         self.tutorial_tilemap_boolean = True
         for i, row in enumerate(TUTORIAL_TILEMAP):
             for j, column in enumerate(row):
@@ -225,26 +271,23 @@ class TilemapHandler(pygame.sprite.Sprite):
                     self.player_character = Player(self.screen, j * TILESIZE, i * TILESIZE)
                     self.player_sprite_group.add(self.player_character)
 
-                self.draw_tile(column, "C", j, i, tiles_dictionary["Chests"], 2, True,  TILESIZE_MULTIPLIER)
-                self.draw_tile(column, "T", j, i, tiles_dictionary["Tree Tile"], 2, True,  TILESIZE_MULTIPLIER)
-                self.draw_tile(column, "D", j, i, tiles_dictionary["Dirt Tile"], 2, False, TILESIZE_MULTIPLIER)
+                self.draw_tile(column, "C", j, i,
+                               tiles_dictionary["Chests"], 2, True,  TILESIZE_MULTIPLIER)
+                self.draw_tile(column, "T", j, i,
+                               tiles_dictionary["Tree Tile"], 2, True,  TILESIZE_MULTIPLIER)
+                self.draw_tile(column, "D", j, i,
+                               tiles_dictionary["Dirt Tile"], 2, False, TILESIZE_MULTIPLIER)
 
         if old_player is not None:
             self.player_character = old_player
             self.player_sprite_group.add(self.player_character)
-
-        self.spawn_npcs("tutorial")
-        self.spawn_transitions("tutorial")
 
     # -------------------------------------------------------------------------
     # Utility
     # -------------------------------------------------------------------------
 
     def clear_all_tiles(self):
-        """
-        Empties every sprite group. Must be called before loading a new map to
-        prevent sprites from the previous map lingering in the groups.
-        """
+        """Empties every sprite group before loading a new map."""
         self.tile_sprite_group.empty()
         self.collision_tile_sprite_group.empty()
         self.enemy_sprite_group.empty()
@@ -256,10 +299,8 @@ class TilemapHandler(pygame.sprite.Sprite):
         self.transition_sprite_group.empty()
 
     def reset_boolean_database(self):
-        """Resets the active-map flags. Called before switching to a new map."""
+        """Resets the active-map flags before switching maps."""
         self.tutorial_tilemap_boolean = False
-        # self.tilemap_boolean = False    # Commented out — not yet needed
-        # self.tilemap_boolean_2 = False
 
     # -------------------------------------------------------------------------
     # Map Transition
@@ -292,5 +333,5 @@ class TilemapHandler(pygame.sprite.Sprite):
 # Wire up the loader lookup after the class is defined so methods are resolved.
 TilemapHandler.MAP_LOADERS = {
     "test":     TilemapHandler.create_test_tilemap,
-    "tutorial": TilemapHandler.create_tutorial_tilemap,
+    "tutorial": TilemapHandler.create_tutorial_map,
 }

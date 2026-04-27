@@ -55,6 +55,8 @@ class Inventory(pygame.sprite.Sprite):
 
         self.title_font = pygame.font.Font(None, 48)
         self.inventory_tooltip_font = pygame.font.Font(None, 18)
+        # Back button rect (will be set in draw_inventory_menu)
+        self.back_button_rect = None
 
     # -------------------------------------------------------------------------
     # Update
@@ -104,6 +106,15 @@ class Inventory(pygame.sprite.Sprite):
         title_surface = self.title_font.render("Inventory", True, (255, 255, 255))
         screen.blit(title_surface, (panel_x + 20, panel_y + 15))
 
+        # Draw a "Back" button in the top‑right corner of the panel
+        back_button_width = 80
+        back_button_height = 30
+        back_button_x = panel_x + panel_width - back_button_width - 10
+        back_button_y = panel_y + 10
+        self.back_button_rect = pygame.Rect(back_button_x, back_button_y, back_button_width, back_button_height)
+        pygame.draw.rect(screen, (100, 100, 100), self.back_button_rect)
+        back_text = self.title_font.render("Back", True, (255, 255, 255))
+        screen.blit(back_text, back_text.get_rect(center=self.back_button_rect.center))
         # The grid starts with a small left offset to center it within the panel.
         grid_size = self.cols * slot_size + (self.cols - 1) * padding
         start_x = panel_x + (panel_width - grid_size) // 2
@@ -156,6 +167,9 @@ class Inventory(pygame.sprite.Sprite):
         https://www.pygame.org/docs/ref/rect.html#pygame.Rect.collidepoint
         """
         mouse_x, mouse_y = pygame.mouse.get_pos()
+        # Check if Back button was clicked
+        if self.back_button_rect and self.back_button_rect.collidepoint(mouse_x, mouse_y):
+            return "close"
 
         for row in range(self.rows):
             for col in range(self.cols):
@@ -171,3 +185,4 @@ class Inventory(pygame.sprite.Sprite):
                         if self.inventory[row][col]["item"].consumable:
                             self.inventory[row][col]["item"] = None
                     return   # Stop after first match
+        return None
