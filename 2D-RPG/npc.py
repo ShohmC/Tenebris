@@ -36,8 +36,8 @@ class NPC(pygame.sprite.Sprite):
     """
 
     # How close (in pixels) the player must be to interact.
-    # Expressed as a float multiple of TILESIZE so it scales with tile size changes.
-    INTERACT_RADIUS = TILESIZE * 2.5
+    # 4 tiles gives comfortable reach without feeling like a magnet.
+    INTERACT_RADIUS = TILESIZE * 4
 
     def __init__(self, screen, x, y, name, dialogue_lines, color=(90, 160, 240)):
         """
@@ -138,11 +138,14 @@ class NPC(pygame.sprite.Sprite):
         if self.showing_dialogue or not self.is_near_player(player):
             return
 
-        pos = camera.apply(self)
+        screen_rect = camera.apply(self)
+        # camera.apply() may return a Rect or a tuple — handle both
+        screen_x = screen_rect.x if hasattr(screen_rect, 'x') else screen_rect[0]
+        screen_y = screen_rect.y if hasattr(screen_rect, 'y') else screen_rect[1]
+
         prompt_surf = self._prompt_font.render("[E]", True, WHITE)
-        # Center the label above the NPC sprite
-        label_x = pos[0] + (self.rect.width - prompt_surf.get_width()) // 2
-        label_y = pos[1] - 20
+        label_x = screen_x + (self.rect.width - prompt_surf.get_width()) // 2
+        label_y = screen_y - 20
         screen.blit(prompt_surf, (label_x, label_y))
 
     def draw_dialogue(self, screen):
@@ -157,10 +160,12 @@ class NPC(pygame.sprite.Sprite):
             return
 
         pad    = 16
+        box_h  = 160
         box_x  = 60
-        box_y  = WINDOW_HEIGHT - 195
-        box_w  = WINDOW_WIDTH  - 120
-        box_h  = 145
+        box_w  = WINDOW_WIDTH - 120
+        # Anchor 30px above the bottom edge so it's always fully on screen
+        # regardless of DPI scaling or window chrome on Windows
+        box_y  = WINDOW_HEIGHT - box_h - 30
 
         # --- Panel background and border ---
         pygame.draw.rect(screen, (16, 16, 28),    (box_x, box_y, box_w, box_h),    border_radius=10)

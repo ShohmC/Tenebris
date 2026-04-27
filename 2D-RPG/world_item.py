@@ -47,7 +47,8 @@ class WorldItem(pygame.sprite.Sprite):
     """
 
     # Class-level font so it is created once, not once per instance.
-    _label_font: pygame.font.Font | None = None
+    # Initialized to None; set on first WorldItem creation.
+    _label_font = None
 
     def __init__(self, screen, x, y, item):
         """
