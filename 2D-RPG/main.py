@@ -2,19 +2,27 @@
 # main.py — Entry Point & Game Loop
 # =============================================================================
 # Game states:
+#   "title"     — title screen with Play / Options
+#   "play_menu" — New Game / Load Game selection
 #   "playing"   — world runs; player, enemies, NPCs, and items update
+#   "paused"    — pause overlay; world is frozen
 #   "inventory" — inventory panel overlaid; world is frozen
 #   "combat"    — circle-wipe transition, then turn-based combat menu
 #   "dialogue"  — NPC dialogue box shown; world is frozen
 #
 # State transitions:
-#   playing → combat    : enemy.initiate_battle_sequence fires
-#   playing → dialogue  : E key near NPC
-#   dialogue → playing  : E key on last dialogue line
-#   combat  → playing   : victory (enemy.kill()) clears the enemy
-#   combat  → inventory : player clicks Items button
-#   inventory → *       : Back button or I restores previous_state
-#   playing → inventory : I key
+#   title → play_menu   : click Play
+#   play_menu → playing  : click New Game (creates tutorial map)
+#   play_menu → title    : click Back
+#   playing → paused     : ESC key
+#   paused → playing     : click Resume / ESC key
+#   playing → combat     : enemy.initiate_battle_sequence fires
+#   playing → dialogue   : E key near NPC
+#   dialogue → playing   : E key on last dialogue line
+#   combat  → playing    : victory (enemy.kill()) clears the enemy
+#   combat  → inventory  : player clicks Items button
+#   inventory → *        : Back button or I restores previous_state
+#   playing → inventory  : I key
 #
 # Bootstrap order: pygame.init() + display.set_mode() must run before any
 # image load, so Game() is created before TilemapHandler().
@@ -39,7 +47,8 @@ class Game:
         self.camera       = Camera()
         self.inventory    = Inventory()
         self.combat       = CombatHandler()
-        self.game_state   = "playing"
+        self.game_state   = "title"   # Start on the title screen
+        self.world_loaded = False     # True after New Game / Load Game creates the map
         # previous_state lets inventory return to either "playing" or "combat"
         self.previous_state      = None
         # current_enemy is set when combat begins; cleared on victory
@@ -59,6 +68,33 @@ class Game:
         self.xp_popup_text  = ""
         self._xp_popup_font = pygame.font.Font(None, 36)
 
+        # ----- Menu fonts and buttons -----
+        self._title_font    = pygame.font.Font(None, 80)
+        self._subtitle_font = pygame.font.Font(None, 36)
+        self._menu_font     = pygame.font.Font(None, 52)
+        self._small_font    = pygame.font.Font(None, 32)
+
+        # Title screen buttons (built once in draw, hit-tested in events)
+        self.title_play_btn    = None
+        self.title_options_btn = None
+        self.title_exit_btn    = None
+
+        # Play-menu buttons
+        self.pm_new_btn  = None
+        self.pm_load_btn = None
+        self.pm_back_btn = None
+
+        # Pause menu buttons
+        self.pause_resume_btn  = None
+        self.pause_options_btn = None
+        self.pause_save_btn    = None
+        self.pause_exit_btn    = None
+
+        # Slot selection buttons (shared by save_select and load_select)
+        self.slot_btns = [None, None, None]  # 3 slots
+        self.slot_back_btn = None
+        self.save_slots = ["slot1", "slot2", "slot3"]
+
     # -------------------------------------------------------------------------
     # Events
     # -------------------------------------------------------------------------
@@ -68,7 +104,87 @@ class Game:
             if event.type == pygame.QUIT:
                 self.running = False
 
+            # ========== TITLE SCREEN ==========
+            if self.game_state == "title":
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    mp = pygame.mouse.get_pos()
+                    if self.title_play_btn and self.title_play_btn.collidepoint(mp):
+                        self.game_state = "play_menu"
+                    elif self.title_options_btn and self.title_options_btn.collidepoint(mp):
+                        pass  # Placeholder
+                    elif self.title_exit_btn and self.title_exit_btn.collidepoint(mp):
+                        self.running = False
+                continue
+
+            # ========== PLAY MENU ==========
+            if self.game_state == "play_menu":
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    mp = pygame.mouse.get_pos()
+                    if self.pm_new_btn and self.pm_new_btn.collidepoint(mp):
+                        tilemap_handler.create_tutorial_map()
+                        self.world_loaded = True
+                        self.map_label_timer = 180
+                        self.game_state = "playing"
+                    elif self.pm_load_btn and self.pm_load_btn.collidepoint(mp):
+                        self.game_state = "load_select"
+                    elif self.pm_back_btn and self.pm_back_btn.collidepoint(mp):
+                        self.game_state = "title"
+                continue
+
+            # ========== LOAD SLOT SELECT ==========
+            if self.game_state == "load_select":
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    mp = pygame.mouse.get_pos()
+                    for i, btn in enumerate(self.slot_btns):
+                        if btn and btn.collidepoint(mp):
+                            if not self.world_loaded:
+                                tilemap_handler.create_tutorial_map()
+                                self.world_loaded = True
+                            self.load_save_data(self.save_slots[i])
+                            self.map_label_timer = 180
+                            self.game_state = "playing"
+                            break
+                    if self.slot_back_btn and self.slot_back_btn.collidepoint(mp):
+                        self.game_state = "play_menu"
+                continue
+
+            # ========== SAVE SLOT SELECT ==========
+            if self.game_state == "save_select":
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    mp = pygame.mouse.get_pos()
+                    for i, btn in enumerate(self.slot_btns):
+                        if btn and btn.collidepoint(mp):
+                            self.save_manager.save_data(self.get_save_data(), self.save_slots[i])
+                            self.game_state = "paused"
+                            break
+                    if self.slot_back_btn and self.slot_back_btn.collidepoint(mp):
+                        self.game_state = "paused"
+                continue
+
+            # ========== PAUSE MENU ==========
+            if self.game_state == "paused":
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    self.game_state = "playing"
+                    continue
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    mp = pygame.mouse.get_pos()
+                    if self.pause_resume_btn and self.pause_resume_btn.collidepoint(mp):
+                        self.game_state = "playing"
+                    elif self.pause_options_btn and self.pause_options_btn.collidepoint(mp):
+                        pass  # Placeholder
+                    elif self.pause_save_btn and self.pause_save_btn.collidepoint(mp):
+                        self.game_state = "save_select"
+                    elif self.pause_exit_btn and self.pause_exit_btn.collidepoint(mp):
+                        self.game_state = "title"
+                continue
+
+            # ========== IN-GAME STATES ==========
             if event.type == pygame.KEYDOWN:
+
+                # --- ESC: open pause menu from playing ---
+                if event.key == pygame.K_ESCAPE and self.game_state == "playing":
+                    self.game_state = "paused"
+                    continue
 
                 # --- Dialogue state: E advances / closes dialogue ---
                 if self.game_state == "dialogue":
@@ -274,10 +390,122 @@ class Game:
         for npc in tilemap_handler.npc_sprite_group.sprites():
             npc.draw_dialogue(screen)
 
+    # -------------------------------------------------------------------------
+    # Menu Drawing Helpers
+    # -------------------------------------------------------------------------
+
+    def _draw_menu_button(self, text, rect, border_color=(255, 220, 80), small=False):
+        """Draw a styled menu button and return its Rect for hit-testing."""
+        pygame.draw.rect(screen, (30, 30, 50), rect, border_radius=8)
+        pygame.draw.rect(screen, border_color, rect, 3, border_radius=8)
+        font = self._small_font if small else self._menu_font
+        label = font.render(text, True, (255, 255, 255))
+        screen.blit(label, label.get_rect(center=rect.center))
+        return rect
+
+    def draw_title_screen(self):
+        """Title screen: game name + Play / Options buttons."""
+        screen.fill((15, 10, 30))
+
+        # Title
+        title_surf = self._title_font.render("Tenebris", True, (255, 220, 80))
+        screen.blit(title_surf, (WINDOW_WIDTH // 2 - title_surf.get_width() // 2, 180))
+
+        sub_surf = self._subtitle_font.render("A 2D RPG Adventure", True, (180, 180, 200))
+        screen.blit(sub_surf, (WINDOW_WIDTH // 2 - sub_surf.get_width() // 2, 260))
+
+        # Buttons
+        btn_w, btn_h = 260, 60
+        cx = WINDOW_WIDTH // 2 - btn_w // 2
+        self.title_play_btn    = self._draw_menu_button("Play",    pygame.Rect(cx, 380, btn_w, btn_h))
+        self.title_options_btn = self._draw_menu_button("Options", pygame.Rect(cx, 470, btn_w, btn_h), (120, 120, 140))
+        self.title_exit_btn    = self._draw_menu_button("Exit",    pygame.Rect(cx, 560, btn_w, btn_h), (200, 60, 60))
+
+    def draw_play_menu(self):
+        """Play sub-menu: New Game / Load Game / Back."""
+        screen.fill((15, 10, 30))
+
+        header = self._title_font.render("Select Mode", True, (255, 220, 80))
+        screen.blit(header, (WINDOW_WIDTH // 2 - header.get_width() // 2, 180))
+
+        btn_w, btn_h = 280, 60
+        cx = WINDOW_WIDTH // 2 - btn_w // 2
+        self.pm_new_btn  = self._draw_menu_button("New Game",  pygame.Rect(cx, 340, btn_w, btn_h))
+        self.pm_load_btn = self._draw_menu_button("Load Game", pygame.Rect(cx, 430, btn_w, btn_h))
+        self.pm_back_btn = self._draw_menu_button("Back",      pygame.Rect(cx, 520, btn_w, btn_h), (120, 120, 140))
+
+
+    def draw_pause_menu(self):
+        """Pause overlay drawn on top of the frozen world."""
+        # Draw world underneath (frozen)
+        self.draw_world()
+
+        # Semi-transparent dark overlay
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 150))
+        screen.blit(overlay, (0, 0))
+
+        header = self._title_font.render("Paused", True, (255, 220, 80))
+        screen.blit(header, (WINDOW_WIDTH // 2 - header.get_width() // 2, 160))
+
+        btn_w, btn_h = 260, 55
+        cx = WINDOW_WIDTH // 2 - btn_w // 2
+        self.pause_resume_btn  = self._draw_menu_button("Resume",  pygame.Rect(cx, 300, btn_w, btn_h))
+        self.pause_options_btn = self._draw_menu_button("Options", pygame.Rect(cx, 380, btn_w, btn_h), (120, 120, 140))
+        self.pause_save_btn    = self._draw_menu_button("Save",    pygame.Rect(cx, 460, btn_w, btn_h))
+        self.pause_exit_btn    = self._draw_menu_button("Exit",    pygame.Rect(cx, 540, btn_w, btn_h), (200, 60, 60))
+
+    def _get_slot_info(self, slot_name):
+        """Return a short description string for a save slot."""
+        try:
+            data = self.save_manager.load_data(slot_name)
+            map_name = data.get("map", "unknown").replace('_', ' ').title()
+            return f"Lv.{data.get('exp', 0) // 100 + 1}  HP:{data.get('health', '?')}  {map_name}"
+        except Exception:
+            return "— Empty —"
+
+    def draw_slot_select(self, title_text):
+        """Shared slot selection screen for Save and Load."""
+        # If saving, show world underneath with overlay
+        if self.game_state == "save_select":
+            self.draw_world()
+            overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 150))
+            screen.blit(overlay, (0, 0))
+        else:
+            screen.fill((15, 10, 30))
+
+        header = self._title_font.render(title_text, True, (255, 220, 80))
+        screen.blit(header, (WINDOW_WIDTH // 2 - header.get_width() // 2, 140))
+
+        btn_w, btn_h = 340, 65
+        cx = WINDOW_WIDTH // 2 - btn_w // 2
+        for i in range(3):
+            info = self._get_slot_info(self.save_slots[i])
+            label = f"Slot {i + 1}:  {info}"
+            self.slot_btns[i] = self._draw_menu_button(label, pygame.Rect(cx, 260 + i * 90, btn_w, btn_h), small=True)
+
+        self.slot_back_btn = self._draw_menu_button("Back", pygame.Rect(cx, 260 + 3 * 90, btn_w, btn_h), (120, 120, 140))
+
     def draw(self):
         screen.fill(RED)
 
-        if self.game_state == "playing":
+        if self.game_state == "title":
+            self.draw_title_screen()
+
+        elif self.game_state == "play_menu":
+            self.draw_play_menu()
+
+        elif self.game_state == "load_select":
+            self.draw_slot_select("Load Game")
+
+        elif self.game_state == "save_select":
+            self.draw_slot_select("Save Game")
+
+        elif self.game_state == "paused":
+            self.draw_pause_menu()
+
+        elif self.game_state == "playing":
             self.draw_world()
             self.draw_dialogue_overlays()
 
@@ -320,9 +548,9 @@ class Game:
             "map":    tilemap_handler.current_map,
         }
 
-    def load_save_data(self):
+    def load_save_data(self, slot_name="slot1"):
         try:
-            data = self.save_manager.load_data("slot1")
+            data = self.save_manager.load_data(slot_name)
             # Restore map if saved (backwards compatible with old saves)
             saved_map = data.get("map", tilemap_handler.current_map)
             if saved_map and saved_map != tilemap_handler.current_map:
@@ -341,12 +569,7 @@ class Game:
     # -------------------------------------------------------------------------
 
     def main(self):
-        # Start on the tutorial map.
-        # To switch maps, replace this with:
-        #   tilemap_handler.create_test_tilemap()      — original combat test map
-        #   tilemap_handler.create_tutorial_tilemap()  — old diamond-path layout
-        tilemap_handler.create_tutorial_map()
-
+        # Map creation is now deferred to New Game / Load Game button click.
         while self.running:
             self.events()
             self.update()
