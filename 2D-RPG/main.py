@@ -260,6 +260,7 @@ class Game:
                     if result == "victory":
                         # Enemy is already killed inside handle_click (enemy.kill())
                         xp_gained = self.current_enemy.exp_on_kill if self.current_enemy else 0
+                        tilemap_handler.player_character.gain_exp(xp_gained)
                         self.xp_popup_text = f"+{xp_gained} XP"
                         self.xp_popup_timer = 120  # 2 seconds at 60 FPS
                         self.game_state = "playing"
@@ -459,8 +460,13 @@ class Game:
         """Return a short description string for a save slot."""
         try:
             data = self.save_manager.load_data(slot_name)
+            from player import Player
+            exp = data.get('exp', 0)
+            level = 1
+            while exp >= Player.total_xp_for_level(level + 1):
+                level += 1
             map_name = data.get("map", "unknown").replace('_', ' ').title()
-            return f"Lv.{data.get('exp', 0) // 100 + 1}  HP:{data.get('health', '?')}  {map_name}"
+            return f"Lv.{level}  HP:{data.get('health', '?')}  {map_name}"
         except Exception:
             return "— Empty —"
 
@@ -557,6 +563,10 @@ class Game:
                 tilemap_handler.transition_to_map(saved_map, data["x"], data["y"])
             tilemap_handler.player_character.health = data["health"]
             tilemap_handler.player_character.exp    = data["exp"]
+            level = 1
+            while data["exp"] >= tilemap_handler.player_character.total_xp_for_level(level + 1):
+                level += 1
+            tilemap_handler.player_character.level = level
             tilemap_handler.player_character.rect.x = data["x"]
             tilemap_handler.player_character.rect.y = data["y"]
         except (pickle.UnpicklingError, EOFError, AttributeError, ImportError) as e:

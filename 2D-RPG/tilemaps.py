@@ -12,6 +12,9 @@
 #   'T'  — Tree tile (collision wall)
 #   'C'  — Chest tile (collision, visual)
 #   'N'  — NPC spawn (assigned top-to-bottom/left-to-right to NPC_CONFIGS list)
+#   'G'  — Enemy (Slime) spawn point
+#   'X'  — Enemy (Wolf) spawn point
+#   'K'  — Enemy (Skeleton) spawn point
 #   'h'  — WorldItem: Health Potion (contact pickup)
 #   's'  — WorldItem: Speed Boost   (contact pickup)
 #   'a'  — WorldItem: Antidote      (contact pickup)
@@ -100,12 +103,67 @@ TUTORIAL_MAP = [
 # =============================================================================
 
 TEST_TILEMAP_1 = [
-    'T............................................',
-    'T............................................',
-    'T...................E........................',
-    'T.............................................',
-    'TDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDPDDDDD',
-    'TTTTTTTDDD........TTT.TTTTTTTTT.....TTTTDDDDDD',
+    # 46 columns wide, 30 rows tall
+    # row  0 — north boundary wall
+    'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
+    # row  1 — open top area
+    'T............................................T',
+    # row  2 — Slime zone (east side, easy)
+    'T........TTTTTTTTT...........................T',
+    # row  3
+    'T........T.......T...........................T',
+    # row  4 — Slime spawns
+    'T........T..G..G.T...........................T',
+    # row  5
+    'T........T.......T...........................T',
+    # row  6
+    'T........TTT..TTTT...........................T',
+    # row  7 — open corridor connecting zones
+    'T............................................T',
+    # row  8 — Bat zone (west side)
+    'T..........................TTTTTTTTT.........T',
+    # row  9
+    'T..........................T.......T.........T',
+    # row 10 — Bat spawns
+    'T..........................T..E..E.T.........T',
+    # row 11
+    'T..........................T.......T.........T',
+    # row 12
+    'T..........................TTT..TTTT.........T',
+    # row 13 — health potion in middle corridor
+    'T.....................h......................T',
+    # row 14 — open area
+    'T............................................T',
+    # row 15 — Wolf zone (east side, dangerous)
+    'T........TTTTTTTTT...........................T',
+    # row 16
+    'T........T.......T...........................T',
+    # row 17 — Wolf spawns
+    'T........T..X....T...........................T',
+    # row 18
+    'T........T.......T...........................T',
+    # row 19
+    'T........TTT..TTTT...........................T',
+    # row 20 — open corridor
+    'T............................................T',
+    # row 21 — Skeleton zone (center, hardest)
+    'T.................TTTTTTTTTTT................T',
+    # row 22
+    'T.................T.........T................T',
+    # row 23 — Skeleton spawns
+    'T.................T...K.....T................T',
+    # row 24
+    'T.................T.........T................T',
+    # row 25
+    'T.................TTTT..TTTTT................T',
+    # row 26 — open area with speed boost
+    'T...............s............................T',
+    # row 27 — player arrival area
+    'T....................P.......................T',
+    # row 28 — transition back to tutorial (cols 20-21)
+    'T....................DD......................T',
+    # row 29 — south boundary wall (gap at cols 20-21 for transition)
+    'TTTTTTTTTTTTTTTTTTTTTT..TTTTTTTTTTTTTTTTTTTTTT',
 ]
 
 

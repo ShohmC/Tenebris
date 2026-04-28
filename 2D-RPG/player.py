@@ -114,8 +114,19 @@ class Player(pygame.sprite.Sprite):
         screen.blit(self.health_value_font.render(str(self.health), True, BLACK), (230, 56))
 
         # Level & XP display below health bar
-        level_text = self.health_value_font.render(f"Lv.{self.level}  XP: {self.exp}", True, BLACK)
+        level_text = self.health_value_font.render(f"Lv.{self.level}", True, BLACK)
         screen.blit(level_text, (50, 85))
+
+        # XP progress bar — shows progress toward next level
+        xp_floor = self.total_xp_for_level(self.level)
+        xp_needed = self.xp_for_next_level(self.level)
+        xp_into_level = self.exp - xp_floor
+        xp_bar_width = 150
+        xp_fill = xp_bar_width * (xp_into_level / xp_needed)
+        pygame.draw.rect(screen, WHITE, (120, 90, xp_bar_width, 16))
+        pygame.draw.rect(screen, (80, 160, 255), (120, 90, xp_fill, 16))
+        xp_label = self.health_value_font.render(f"{xp_into_level}/{xp_needed}", True, BLACK)
+        screen.blit(xp_label, (145, 88))
 
     # Draws status symbols to the right of health bar
     def draw_player_status_effects(self, screen):
@@ -126,13 +137,33 @@ class Player(pygame.sprite.Sprite):
                 screen.blit(self.status_icons[status], (x_offset, y))
                 x_offset += 36
 
+    @staticmethod
+    def xp_for_next_level(level):
+        """XP needed to go from `level` to `level + 1`. Scales by +25 each level."""
+        return 100 + (level - 1) * 25
+
+    @staticmethod
+    def total_xp_for_level(level):
+        """Cumulative XP required to reach `level` from level 1."""
+        # Sum of (100 + (i-1)*25) for i = 1 .. level-1
+        if level <= 1:
+            return 0
+        n = level - 1
+        return n * 100 + 25 * (n - 1) * n // 2
+
+    def gain_exp(self, amount):
+        """Award XP and level up as many times as earned."""
+        self.exp += amount
+        while self.exp >= self.total_xp_for_level(self.level + 1):
+            self.level += 1
+
     def get_attack(self):
-        # Base attack – you can later add weapon bonuses
-        return 10
+        # Base attack scales slightly with level
+        return 10 + (self.level - 1) * 2
 
     def get_defense(self):
-        # Base defense – you can later add armor bonuses
-        return 5
+        # Base defense scales slightly with level
+        return 5 + (self.level - 1)
 
     def take_damage(self, amount):
         self.health -= amount

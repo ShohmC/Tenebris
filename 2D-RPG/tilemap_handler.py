@@ -18,7 +18,7 @@
 #   3. Document it in tilemaps.py's legend comment.
 # =============================================================================
 
-from enemies    import Bat
+from enemies    import Bat, Slime, Wolf, Skeleton
 from npc        import NPC
 from world_item import WorldItem
 from tiles      import *       # Tile, TransitionTile + config (TILESIZE, tiles_dictionary, etc.)
@@ -29,14 +29,16 @@ from tilemaps   import *       # All tilemap strings
 # Each entry: (tile_col, tile_row, target_map_name, dest_col, dest_row)
 TRANSITION_DEFINITIONS = {
     "tutorial": [
-        (20, 0, "test", 42, 3),    # top gate exit (left tile, outermost)
-        (21, 0, "test", 42, 3),    # top gate exit (right tile, outermost)
-        (20, 1, "test", 42, 3),    # top gate entry (left tile)
-        (21, 1, "test", 42, 3),    # top gate entry (right tile)
+        (20, 0, "test", 20, 27),   # top gate exit (left tile, outermost)
+        (21, 0, "test", 21, 27),   # top gate exit (right tile, outermost)
+        (20, 1, "test", 20, 27),   # top gate entry (left tile)
+        (21, 1, "test", 21, 27),   # top gate entry (right tile)
     ],
     "test": [
-        (1, 3, "tutorial", 20, 15),  # left edge leads back to tutorial (upper tile)
-        (1, 4, "tutorial", 20, 15),  # left edge leads back to tutorial (lower tile)
+        (20, 29, "tutorial", 20, 1),  # south gate exit (left, outermost row)
+        (21, 29, "tutorial", 21, 1),  # south gate exit (right, outermost row)
+        (20, 28, "tutorial", 20, 1),  # south gate entry (left)
+        (21, 28, "tutorial", 21, 1),  # south gate entry (right)
     ],
 }
 
@@ -194,6 +196,12 @@ class TilemapHandler(pygame.sprite.Sprite):
                 # so a new player can realistically win the tutorial fight).
                 if column == "E":
                     self.spawn_enemy(Bat, j, i, 60)
+                elif column == "G":
+                    self.spawn_enemy(Slime, j, i, 30)
+                elif column == "X":
+                    self.spawn_enemy(Wolf, j, i, 80)
+                elif column == "K":
+                    self.spawn_enemy(Skeleton, j, i, 120)
 
                 # --- NPC spawn ---
                 if column == "N":
@@ -232,7 +240,8 @@ class TilemapHandler(pygame.sprite.Sprite):
         self.spawn_transitions("tutorial")
 
     def create_test_tilemap(self, preserve_player=False):
-        """Parses TEST_TILEMAP_1. Original combat test map."""
+        """Parses TEST_TILEMAP_1. Expanded combat map with 4 enemy zones."""
+        from items import health_potion, speed_boost_item
         old_player = self.player_character if preserve_player and hasattr(self, 'player_character') else None
         self.clear_all_tiles()
         self.current_map = "test"
@@ -247,9 +256,23 @@ class TilemapHandler(pygame.sprite.Sprite):
                     self.player_sprite_group.add(self.player_character)
 
                 if column == "E":
-                    bat = Bat(self.screen, j * TILESIZE, i * TILESIZE, 100)
-                    self.enemy_sprite_group.add(bat)
-                    self.collision_enemy_sprite_group.add(bat)
+                    self.spawn_enemy(Bat, j, i, 100)
+                elif column == "G":
+                    self.spawn_enemy(Slime, j, i, 30)
+                elif column == "X":
+                    self.spawn_enemy(Wolf, j, i, 80)
+                elif column == "K":
+                    self.spawn_enemy(Skeleton, j, i, 120)
+
+                # --- World item spawns ---
+                if column == "h":
+                    self.item_sprite_group.add(
+                        WorldItem(self.screen, j * TILESIZE, i * TILESIZE, health_potion)
+                    )
+                elif column == "s":
+                    self.item_sprite_group.add(
+                        WorldItem(self.screen, j * TILESIZE, i * TILESIZE, speed_boost_item)
+                    )
 
                 self.draw_tile(column, "D", j, i,
                                tiles_dictionary["Dirt Tile"], 2, False, TILESIZE_MULTIPLIER)

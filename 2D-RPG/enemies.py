@@ -195,11 +195,11 @@ class Enemies(pygame.sprite.Sprite):
             if distance > 0:
                 direction.normalize_ip()
                 self.velocity = direction * self.speed
+                self.rect.move_ip(self.velocity)
                 self.check_collision(tile_collision_group, player_collision_group)
             else:
                 self.idle_animation()
 
-            self.rect.move_ip(self.velocity)
             self.animation()
 
     # -------------------------------------------------------------------------
@@ -252,3 +252,67 @@ class Bat(Enemies):
             # stats: health, damage, exp_on_kill
             health, 1, 35 ,  defense=2
         )
+
+
+# =============================================================================
+# Concrete Enemy: Slime
+# =============================================================================
+
+class Slime(Enemies):
+    """
+    Weak, slow enemy. Good for beginners — low health, low damage.
+    Moves slower than other enemies (speed = 1).
+    """
+    def __init__(self, screen, initial_x_location, initial_y_location, health):
+        super().__init__(
+            screen, initial_x_location, initial_y_location,
+            "Enemy/Slime/left1.png",
+            "Enemy/Slime/left1.png", "Enemy/Slime/left2.png",
+            "Enemy/Slime/right1.png", "Enemy/Slime/right2.png",
+            "Enemy/Slime/left1.png", "Enemy/Slime/left2.png",
+            "Enemy/Slime/right1.png", "Enemy/Slime/right2.png",
+            health, 3, 15, defense=0
+        )
+        self.speed = 1.35  # Slower than default
+
+
+# =============================================================================
+# Concrete Enemy: Wolf
+# =============================================================================
+
+class Wolf(Enemies):
+    """
+    Fast, aggressive enemy. Higher damage and speed than the Bat.
+    """
+    def __init__(self, screen, initial_x_location, initial_y_location, health):
+        super().__init__(
+            screen, initial_x_location, initial_y_location,
+            "Enemy/Wolf/left1.png",
+            "Enemy/Wolf/left1.png", "Enemy/Wolf/left2.png",
+            "Enemy/Wolf/right1.png", "Enemy/Wolf/right2.png",
+            "Enemy/Wolf/left1.png", "Enemy/Wolf/left2.png",
+            "Enemy/Wolf/right1.png", "Enemy/Wolf/right2.png",
+            health, 8, 50, defense=3
+        )
+        self.speed = 3  # Faster than default
+
+
+# =============================================================================
+# Concrete Enemy: Skeleton
+# =============================================================================
+
+class Skeleton(Enemies):
+    """
+    Tanky enemy. High health and defense, moderate damage.
+    """
+    def __init__(self, screen, initial_x_location, initial_y_location, health):
+        super().__init__(
+            screen, initial_x_location, initial_y_location,
+            "Enemy/Skeleton/left1.png",
+            "Enemy/Skeleton/left1.png", "Enemy/Skeleton/left2.png",
+            "Enemy/Skeleton/right1.png", "Enemy/Skeleton/right2.png",
+            "Enemy/Skeleton/left1.png", "Enemy/Skeleton/left2.png",
+            "Enemy/Skeleton/right1.png", "Enemy/Skeleton/right2.png",
+            health, 5, 60, defense=6
+        )
+        self.speed = 1.35  # Slow but tanky
