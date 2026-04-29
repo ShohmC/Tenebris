@@ -31,6 +31,9 @@ BLUE  = (0, 0, 255)
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 
+LOW_HEALTH_THRESHOLD = 95   # health below this triggers red blink
+
+
 # Maps readable names to asset file paths — update paths here only
 tiles_dictionary = {
     "Grass Tile": "Tiles/GrassTile.png",
