@@ -203,19 +203,23 @@ class Player(pygame.sprite.Sprite):
     def movement(self, dt):
         keys = pygame.key.get_pressed()
         self.velocity.update(0, 0)
-
+        moved = False
         if keys[pygame.K_w]:
             self.animate("up_counter", self.up_frames)
             self.velocity.y = -PLAYER_Y_VELOCITY * dt * self.velocity_multiplier
+            moved = True
         if keys[pygame.K_a]:
             self.animate("left_counter", self.left_frames)
             self.velocity.x = -PLAYER_X_VELOCITY * dt * self.velocity_multiplier
+            moved = True
         if keys[pygame.K_s]:
             self.animate("down_counter", self.down_frames)
             self.velocity.y = PLAYER_Y_VELOCITY * dt * self.velocity_multiplier
+            moved = True
         if keys[pygame.K_d]:
             self.animate("right_counter", self.right_frames)
             self.velocity.x = PLAYER_X_VELOCITY * dt * self.velocity_multiplier
+            moved = True
 
 
                 # footstep sound
