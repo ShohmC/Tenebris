@@ -60,9 +60,14 @@ class Player(pygame.sprite.Sprite):
         self.right_counter = 0
 
         # --- Player Stats ---
-        self.health         = 100
+        self.max_health = 100
+        self.health = 100
+        self.max_energy = 100
+        self.energy = 100
+        self.energy_regen_basic_attack = 10  # Energy gained from basic attack
         self.exp            = 0
         self.level          = 1
+        self.unlocked_skill_ids = ["slash", "heavy_strike", "poison_strike", "quick_slash"]  # Starting skills
         self.upgrade_points = 0
 
         # --- Player Status Effects ---
@@ -131,6 +136,12 @@ class Player(pygame.sprite.Sprite):
         xp_label = self.health_value_font.render(f"{xp_into_level}/{xp_needed}", True, BLACK)
         screen.blit(xp_label, (145, 88))
 
+        # Add energy bar below XP
+        pygame.draw.rect(screen, (100, 100, 150), (50, 115, 150, 16))
+        pygame.draw.rect(screen, (80, 180, 255), (50, 115, 150 * (self.energy / self.max_energy), 16))
+        energy_label = self.health_value_font.render(f"MP: {self.energy}", True, BLACK)
+        screen.blit(energy_label, (210, 113))
+
     # Draws status symbols to the right of health bar
     def draw_player_status_effects(self, screen):
         x_offset = 340
@@ -139,6 +150,10 @@ class Player(pygame.sprite.Sprite):
             if status in self.status_icons:
                 screen.blit(self.status_icons[status], (x_offset, y))
                 x_offset += 36
+
+    # -------------------------------------------------------------------------
+    # Battle
+    # -------------------------------------------------------------------------
 
     @staticmethod
     def xp_for_next_level(level):
@@ -172,6 +187,30 @@ class Player(pygame.sprite.Sprite):
         self.health -= amount
         if self.health < 0:
             self.health = 0
+
+    def use_energy(self, amount):
+        """Attempt to use energy. Returns True if successful."""
+        if self.energy >= amount:
+            self.energy -= amount
+            return True
+        return False
+
+    def regen_energy(self, amount):
+        """Regenerate energy (capped at max)."""
+        self.energy = min(self.max_energy, self.energy + amount)
+
+    def unlock_skill(self, skill_id):
+        """Add a skill to player's unlocked skills."""
+        if skill_id not in self.unlocked_skill_ids:
+            self.unlocked_skill_ids.append(skill_id)
+
+    def has_skill(self, skill_id):
+        """Check if player has unlocked a skill."""
+        return skill_id in self.unlocked_skill_ids
+
+    def get_skill_list(self):
+        """Return list of skill IDs the player has unlocked."""
+        return self.unlocked_skill_ids
 
     # -------------------------------------------------------------------------
     # Collision

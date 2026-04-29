@@ -13,20 +13,8 @@
 #   pygame.sprite.Sprite  ←  Enemies  ←  Bat  (and future enemy types)
 # =============================================================================
 
-from config import *   # TILESIZE, ENEMY_LAYER, pygame, etc.
-
-
-def load_enemy_image(path):
-    """
-    Helper function: loads an image from disk and scales it to 28×28 pixels.
-    Extracted into a standalone function so both Enemies.__init__ and any
-    future code can reuse it without duplicating the scale call.
-    convert_alpha() ensures transparency is preserved correctly.
-    """
-    return pygame.transform.scale(
-        pygame.image.load(path).convert_alpha(),
-        (28, 28)
-    )
+from config import *  # TILESIZE, ENEMY_LAYER, pygame, etc.
+import os
 
 
 class Enemies(pygame.sprite.Sprite):
@@ -49,84 +37,225 @@ class Enemies(pygame.sprite.Sprite):
                  down_img_1, down_img_2,
                  left_img_1, left_img_2,
                  right_img_1, right_img_2,
-                 health, damage, exp_on_kill , defense = 0):
+                 health, damage, exp_on_kill, defense=0):
         super().__init__()
 
         # --- Flag watched by Game.update() to trigger combat state ---
-        # When True, the main loop transitions game_state to "combat".
         self.initiate_battle_sequence = False
 
         self.screen = screen
         self.initial_x_location = initial_x_location
         self.initial_y_location = initial_y_location
-        self.initial_image = initial_image   # Path string kept so combat screen can reload it
+        self.initial_image = initial_image
 
-        # Load all directional animation frames at init time (not each frame).
-        self.image    = load_enemy_image(initial_image)
-        self.up_img_1 = load_enemy_image(up_img_1)
-        self.up_img_2 = load_enemy_image(up_img_2)
-        self.down_img_1  = load_enemy_image(down_img_1)
-        self.down_img_2  = load_enemy_image(down_img_2)
-        self.left_img_1  = load_enemy_image(left_img_1)
-        self.left_img_2  = load_enemy_image(left_img_2)
-        self.right_img_1 = load_enemy_image(right_img_1)
-        self.right_img_2 = load_enemy_image(right_img_2)
+        # Load all directional animation frames
+        self.image = self._load_image(initial_image)
+        self.combat_image = self._load_image(initial_image, combat_size=True)
+        self.up_img_1 = self._load_image(up_img_1)
+        self.up_img_2 = self._load_image(up_img_2)
+        self.down_img_1 = self._load_image(down_img_1)
+        self.down_img_2 = self._load_image(down_img_2)
+        self.left_img_1 = self._load_image(left_img_1)
+        self.left_img_2 = self._load_image(left_img_2)
+        self.right_img_1 = self._load_image(right_img_1)
+        self.right_img_2 = self._load_image(right_img_2)
 
-        self.rect   = self.image.get_rect(topleft=(initial_x_location, initial_y_location))
+        self.rect = self.image.get_rect(topleft=(initial_x_location, initial_y_location))
         self._layer = ENEMY_LAYER
 
         # velocity is recalculated each frame from direction toward the player.
         self.velocity = pygame.math.Vector2(0, 0)
-        self.speed    = 2   # Pixels per frame (not dt-scaled — consider scaling for consistency)
+        self.speed = 2
 
         # --- Stats ---
-        self.max_health  = health
-        self.health      = health
-        self.damage      = damage
-        self.exp_on_kill = exp_on_kill   # XP awarded to player on defeat (not yet implemented)
+        self.max_health = health
+        self.health = health
+        self.damage = damage
+        self.exp_on_kill = exp_on_kill
         self.defense = defense
+
+        # --- Status Effects System ---
+        self.active_statuses = {}
+        self.status_data = {}
+
         # Previous-frame position used by animation() to infer movement direction.
         self.previous_x_location = self.rect.x
         self.previous_y_location = self.rect.y
 
-        # Battle cooldown — when > 0, enemy won't chase or trigger combat.
-        # Decremented each frame in update_movement(). Set by reset_to_spawn().
+        # Battle cooldown
         self.battle_cooldown = 0
 
-        # Per-direction animation counters (same 0–19 cycle as Player).
-        self.up_counter    = 0
-        self.down_counter  = 0
-        self.left_counter  = 0
+        # Per-direction animation counters
+        self.up_counter = 0
+        self.down_counter = 0
+        self.left_counter = 0
         self.right_counter = 0
+
+        # Reference to combat handler for floaters
+        self.combat_handler = None
+
+    # -------------------------------------------------------------------------
+    # Helper Methods (MUST be at class level, NOT inside __init__)
+    # -------------------------------------------------------------------------
+
+    def _load_image(self, path, combat_size=False):
+        """Load an enemy image with fallback to colored placeholder."""
+        try:
+            if os.path.exists(path):
+                img = pygame.image.load(path).convert_alpha()
+                if combat_size:
+                    img = pygame.transform.scale(img, (120, 120))
+                else:
+                    img = pygame.transform.scale(img, (28, 28))
+                return img
+            else:
+                # Create placeholder
+                size = (120, 120) if combat_size else (28, 28)
+                surf = pygame.Surface(size)
+                surf.fill((150, 80, 80))
+                pygame.draw.rect(surf, (100, 50, 50), surf.get_rect(), 2)
+                return surf
+        except Exception:
+            size = (120, 120) if combat_size else (28, 28)
+            surf = pygame.Surface(size)
+            surf.fill((150, 80, 80))
+            return surf
+
+    # -------------------------------------------------------------------------
+    # Status Effects
+    # -------------------------------------------------------------------------
+
+    def set_combat_handler(self, handler):
+        """Set reference to combat handler for displaying floaters."""
+        self.combat_handler = handler
+
+    def apply_status_effect(self, effect, duration, combat_handler=None):
+        """Apply a status effect to the enemy."""
+        if combat_handler:
+            self.combat_handler = combat_handler
+
+        self.active_statuses[effect] = duration
+
+        if effect == "poison":
+            self.status_data["poison"] = {"damage": 5, "last_tick": 0}
+        elif effect == "burn":
+            self.status_data["burn"] = {"damage": 8, "last_tick": 0}
+        elif effect == "slow":
+            self.status_data["slow"] = {"speed_multiplier": 0.5}
+        elif effect == "energy_drain":
+            self.status_data["energy_drain"] = {"drain_amount": 10}
+
+        if self.combat_handler:
+            self.combat_handler.floaters.append({
+                "text": f"{effect.upper()}!",
+                "color": (180, 100, 255),
+                "x": WINDOW_WIDTH // 1.5 + 100,
+                "y": WINDOW_HEIGHT // 6.25 - 100,
+                "timer": 60
+            })
+
+    def remove_status_effect(self, effect):
+        """Remove a specific status effect from the enemy."""
+        if effect in self.active_statuses:
+            del self.active_statuses[effect]
+        if effect in self.status_data:
+            del self.status_data[effect]
+
+    def clear_all_status_effects(self):
+        """Clear all status effects from the enemy."""
+        self.active_statuses.clear()
+        self.status_data.clear()
+
+    def update_status_effects(self, turn_action=False):
+        """Update enemy status effects."""
+        damage_dealt = 0
+        effects_to_remove = []
+
+        for effect, duration in list(self.active_statuses.items()):
+            new_duration = duration - 1
+            if new_duration <= 0:
+                effects_to_remove.append(effect)
+                continue
+            else:
+                self.active_statuses[effect] = new_duration
+
+            if turn_action:
+                if effect == "poison":
+                    poison_damage = self.status_data.get("poison", {}).get("damage", 5)
+                    self.health -= poison_damage
+                    damage_dealt += poison_damage
+
+                    if self.combat_handler:
+                        self.combat_handler.floaters.append({
+                            "text": f"-{poison_damage} (Poison)",
+                            "color": (160, 80, 255),
+                            "x": WINDOW_WIDTH // 1.5 + 80,
+                            "y": WINDOW_HEIGHT // 6.25 - 40,
+                            "timer": 50
+                        })
+
+                elif effect == "burn":
+                    burn_damage = self.status_data.get("burn", {}).get("damage", 8)
+                    self.health -= burn_damage
+                    damage_dealt += burn_damage
+
+                    if self.combat_handler:
+                        self.combat_handler.floaters.append({
+                            "text": f"-{burn_damage} (Burn)",
+                            "color": (255, 100, 50),
+                            "x": WINDOW_WIDTH // 1.5 + 80,
+                            "y": WINDOW_HEIGHT // 6.25 - 40,
+                            "timer": 50
+                        })
+
+        for effect in effects_to_remove:
+            self.remove_status_effect(effect)
+            if self.combat_handler:
+                self.combat_handler.floaters.append({
+                    "text": f"{effect.upper()} wore off",
+                    "color": (200, 200, 200),
+                    "x": WINDOW_WIDTH // 1.5 + 80,
+                    "y": WINDOW_HEIGHT // 6.25 - 80,
+                    "timer": 40
+                })
+
+        if damage_dealt > 0:
+            return {"damage": damage_dealt, "effects": list(self.active_statuses.keys())}
+        return None
+
+    def get_speed_multiplier(self):
+        """Return current speed multiplier based on status effects."""
+        multiplier = 1.0
+        if "slow" in self.active_statuses:
+            multiplier *= self.status_data.get("slow", {}).get("speed_multiplier", 0.5)
+        return multiplier
+
+    def has_status(self, effect):
+        """Check if enemy has a specific status effect."""
+        return effect in self.active_statuses
+
+    def get_active_statuses(self):
+        """Return list of active status effects."""
+        return list(self.active_statuses.keys())
 
     # -------------------------------------------------------------------------
     # Animation
     # -------------------------------------------------------------------------
 
     def _animate_direction(self, counter_name, frame_1, frame_2):
-        """
-        Shared animation stepper — identical in concept to Player.animate().
-        Uses getattr/setattr to work with any directional counter by name.
-        """
+        """Shared animation stepper."""
         counter = (getattr(self, counter_name) + 1) % 20
         setattr(self, counter_name, counter)
         self.image = frame_1 if counter < 10 else frame_2
 
     def animation(self):
-        """
-        Determines the current movement direction by comparing the current
-        position to the previous frame's position, then calls _animate_direction.
-
-        NOTE: This approach only checks one axis at a time (y before x), so
-        diagonal movement always plays the vertical animation. A priority system
-        or velocity-based check would be more accurate.
-        """
+        """Determines movement direction and animates."""
         if self.rect.y < self.previous_y_location:
-            self._animate_direction("up_counter",    self.up_img_1,    self.up_img_2)
+            self._animate_direction("up_counter", self.up_img_1, self.up_img_2)
         elif self.rect.y > self.previous_y_location:
-            self._animate_direction("down_counter",  self.down_img_1,  self.down_img_2)
+            self._animate_direction("down_counter", self.down_img_1, self.down_img_2)
         elif self.rect.x < self.previous_x_location:
-            self._animate_direction("left_counter",  self.left_img_1,  self.left_img_2)
+            self._animate_direction("left_counter", self.left_img_1, self.left_img_2)
         elif self.rect.x > self.previous_x_location:
             self._animate_direction("right_counter", self.right_img_1, self.right_img_2)
 
@@ -135,7 +264,7 @@ class Enemies(pygame.sprite.Sprite):
         self.previous_y_location = self.rect.y
 
     def idle_animation(self):
-        """Placeholder for when the enemy is stationary. Override in subclasses."""
+        """Placeholder for when the enemy is stationary."""
         pass
 
     # -------------------------------------------------------------------------
@@ -173,17 +302,11 @@ class Enemies(pygame.sprite.Sprite):
              direction vector and scale by self.speed to get velocity.
           3. Apply collision checks.
           4. Move the rect and animate.
-
-        normalize_ip() scales the vector to length 1 so diagonal movement is
-        the same speed as cardinal movement.
-        See: https://www.pygame.org/docs/ref/math.html#pygame.math.Vector2.normalize_ip
-
-        Called from Game.update() for every enemy each frame.
         """
         # Tick down battle cooldown
         if self.battle_cooldown > 0:
             self.battle_cooldown -= 1
-            return  # Don't chase while on cooldown
+            return
 
         direction = pygame.math.Vector2(
             player_rect.x - self.rect.x,
@@ -191,10 +314,11 @@ class Enemies(pygame.sprite.Sprite):
         )
         distance = direction.length()
 
-        if distance <= TILESIZE * 8:   # Detection / aggro radius
+        if distance <= TILESIZE * 8:
             if distance > 0:
                 direction.normalize_ip()
-                self.velocity = direction * self.speed
+                current_speed = self.speed * self.get_speed_multiplier()
+                self.velocity = direction * current_speed
                 self.rect.move_ip(self.velocity)
                 self.check_collision(tile_collision_group, player_collision_group)
             else:
@@ -203,7 +327,7 @@ class Enemies(pygame.sprite.Sprite):
             self.animation()
 
     # -------------------------------------------------------------------------
-    # Run from battle — reset enemy to spawn and start cooldown
+    # Run from battle
     # -------------------------------------------------------------------------
 
     def reset_to_spawn(self, cooldown_frames=180):
@@ -220,6 +344,7 @@ class Enemies(pygame.sprite.Sprite):
         self.health = self.max_health
         self.initiate_battle_sequence = False
         self.battle_cooldown = cooldown_frames
+        self.clear_all_status_effects()
 
 
 # =============================================================================
@@ -239,19 +364,14 @@ class Bat(Enemies):
     def __init__(self, screen, initial_x_location, initial_y_location, health):
         super().__init__(
             screen, initial_x_location, initial_y_location,
-            # initial_image (also used as the combat screen portrait)
             "Enemy/Bat/left1.png",
-            # up frames
             "Enemy/Bat/left1.png", "Enemy/Bat/left2.png",
-            # down frames
             "Enemy/Bat/right1.png", "Enemy/Bat/right2.png",
-            # left frames
             "Enemy/Bat/left1.png", "Enemy/Bat/left2.png",
-            # right frames
             "Enemy/Bat/right1.png", "Enemy/Bat/right2.png",
-            # stats: health, damage, exp_on_kill
-            health, 1, 35 ,  defense=2
+            health, 10, 35, defense=2
         )
+        self.speed = 2.5
 
 
 # =============================================================================
@@ -271,9 +391,9 @@ class Slime(Enemies):
             "Enemy/Slime/right1.png", "Enemy/Slime/right2.png",
             "Enemy/Slime/left1.png", "Enemy/Slime/left2.png",
             "Enemy/Slime/right1.png", "Enemy/Slime/right2.png",
-            health, 3, 15, defense=0
+            health, 6, 15, defense=0
         )
-        self.speed = 1.35  # Slower than default
+        self.speed = 1.35
 
 
 # =============================================================================
@@ -292,9 +412,9 @@ class Wolf(Enemies):
             "Enemy/Wolf/right1.png", "Enemy/Wolf/right2.png",
             "Enemy/Wolf/left1.png", "Enemy/Wolf/left2.png",
             "Enemy/Wolf/right1.png", "Enemy/Wolf/right2.png",
-            health, 8, 50, defense=3
+            health, 12, 50, defense=3
         )
-        self.speed = 3  # Faster than default
+        self.speed = 3
 
 
 # =============================================================================
@@ -313,6 +433,6 @@ class Skeleton(Enemies):
             "Enemy/Skeleton/right1.png", "Enemy/Skeleton/right2.png",
             "Enemy/Skeleton/left1.png", "Enemy/Skeleton/left2.png",
             "Enemy/Skeleton/right1.png", "Enemy/Skeleton/right2.png",
-            health, 5, 60, defense=6
+            health, 8, 60, defense=6
         )
-        self.speed = 1.35  # Slow but tanky
+        self.speed = 1.35

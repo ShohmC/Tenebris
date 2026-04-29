@@ -29,6 +29,7 @@
 # =============================================================================
 import pickle
 import math
+import os
 
 from combat_handler  import CombatHandler
 from tilemap_handler import *   # also pulls in NPC, WorldItem, items via handler
@@ -41,7 +42,31 @@ screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE
 #  BACKGROUND MUSIC  
 pygame.mixer.music.load("Music/Theme.mp3")   
 pygame.mixer.music.set_volume(0.5)                      
-pygame.mixer.music.play(-1)     
+pygame.mixer.music.play(-1)
+
+BACKGROUND_IMAGE = None
+def load_background():
+    global BACKGROUND_IMAGE
+    try:
+        # Try to load custom background - create your own or use a placeholder
+        bg_path = "Backgrounds/overworld.png"
+        if os.path.exists(bg_path):
+            BACKGROUND_IMAGE = pygame.image.load(bg_path).convert()
+            BACKGROUND_IMAGE = pygame.transform.scale(BACKGROUND_IMAGE, (WINDOW_WIDTH, WINDOW_HEIGHT))
+        else:
+            # Fallback to gradient background if no image exists
+            BACKGROUND_IMAGE = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+            for i in range(WINDOW_HEIGHT):
+                color_value = 30 + int((i / WINDOW_HEIGHT) * 60)
+                pygame.draw.line(BACKGROUND_IMAGE, (color_value, color_value - 15, color_value - 30),
+                               (0, i), (WINDOW_WIDTH, i))
+    except Exception as e:
+        print(f"Could not load background: {e}")
+        # Fallback to dark gradient
+        BACKGROUND_IMAGE = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+        BACKGROUND_IMAGE.fill((30, 20, 40))
+
+load_background()
 
 class Game:
     def __init__(self):
@@ -59,6 +84,7 @@ class Game:
         self.current_enemy       = None
         self.current_enemy_image = None
         self.save_manager = SaveManager(".save", "SaveData")
+        self.inventory_background_is_combat = False
 
         # NPC dialogue tracking
         self.active_npc = None  # The NPC currently being talked to
@@ -208,11 +234,14 @@ class Game:
                 if event.key == pygame.K_i:
                     if self.game_state == "playing":
                         self.previous_state = self.game_state
+                        self.inventory_background_is_combat = False
                         self.game_state = "inventory"
                     elif self.game_state == "combat":
                         self.previous_state = self.game_state
+                        self.inventory_background_is_combat = True
                         self.game_state = "inventory"
                     elif self.game_state == "inventory":
+                        self.inventory_background_is_combat = False
                         self.game_state = (self.previous_state
                                            if self.previous_state is not None
                                            else "playing")
@@ -249,6 +278,7 @@ class Game:
                         tilemap_handler.player_character
                     )
                     if result == "close":
+                        self.inventory_background_is_combat = False
                         self.game_state = (self.previous_state
                                            if self.previous_state is not None
                                            else "playing")
@@ -264,11 +294,11 @@ class Game:
                         self.inventory,
                     )
                     if result == "victory":
-                        # Enemy is already killed inside handle_click (enemy.kill())
                         xp_gained = self.current_enemy.exp_on_kill if self.current_enemy else 0
                         tilemap_handler.player_character.gain_exp(xp_gained)
+                        tilemap_handler.player_character.energy = tilemap_handler.player_character.max_energy
                         self.xp_popup_text = f"+{xp_gained} XP"
-                        self.xp_popup_timer = 120  # 2 seconds at 60 FPS
+                        self.xp_popup_timer = 120
                         self.game_state = "playing"
                         self.combat.transition_finished = False
                         self.combat.floaters.clear()
@@ -277,6 +307,7 @@ class Game:
                         print("Game Over")
                         self.running = False
                     elif result == "run":
+                        tilemap_handler.player_character.energy = tilemap_handler.player_character.max_energy
                         self.current_enemy.reset_to_spawn()
                         self.game_state = "playing"
                         self.combat.transition_finished = False
@@ -284,7 +315,19 @@ class Game:
                         self.current_enemy = None
                     elif result == "open_inventory":
                         self.previous_state = "combat"
+                        self.inventory_background_is_combat = True
                         self.game_state = "inventory"
+                    elif result == "skill_menu_opened":
+                        # Skill menu is now active, stay in combat state
+                        pass
+                    elif result == "close":
+                        # Closed skill menu, stay in combat
+                        pass
+                    elif result == "no_energy":
+                        # Show feedback that player can't afford skill
+                        self.combat.floaters.append({"text": "NOT ENOUGH ENERGY!", "color": (255, 100, 100),
+                                                     "x": WINDOW_WIDTH // 2, "y": WINDOW_HEIGHT // 2, "timer": 60})
+                    # "turn_done" and "skill_used" don't change game state
 
     # -------------------------------------------------------------------------
     # Update
@@ -500,7 +543,10 @@ class Game:
         self.slot_back_btn = self._draw_menu_button("Back", pygame.Rect(cx, 260 + 3 * 90, btn_w, btn_h), (120, 120, 140))
 
     def draw(self):
-        screen.fill(RED)
+        if BACKGROUND_IMAGE:
+            screen.blit(BACKGROUND_IMAGE, (0, 0))
+        else:
+            screen.fill((30, 20, 40))  # Dark fallback color
 
         if self.game_state == "title":
             self.draw_title_screen()
@@ -526,23 +572,44 @@ class Game:
             if self.active_npc:
                 self.active_npc.draw_dialogue(screen)
 
+
         elif self.game_state == "inventory":
-            self.draw_world()
-            self.draw_dialogue_overlays()
+            # Draw the appropriate background based on where we came from
+            if self.inventory_background_is_combat:
+                # Draw combat screen as background
+                if not self.combat.transition_finished:
+                    self.draw_world()
+                    self.combat.draw_transition(screen)
+                else:
+                    self.combat.draw_combat_menu(
+                        screen,
+                        tilemap_handler.player_character,
+                        self.current_enemy,
+                    )
+                    if self.combat.skill_menu_active:
+                        self.combat.draw_skill_menu(screen, tilemap_handler.player_character, self.current_enemy)
+            else:
+                # Draw normal world background
+                self.draw_world()
+                self.draw_dialogue_overlays()
+            # Draw inventory on top
             self.inventory.draw_inventory_menu(screen)
+
 
         elif self.game_state == "combat":
             if not self.combat.transition_finished:
-                # Circle-wipe animation still playing — show world underneath
                 self.draw_world()
                 self.combat.draw_transition(screen)
             else:
-                # Transition done — show the full combat menu
+                # Draw combat menu
                 self.combat.draw_combat_menu(
                     screen,
                     tilemap_handler.player_character,
                     self.current_enemy,
                 )
+                # If skill menu is active, draw it on top
+                if self.combat.skill_menu_active:
+                    self.combat.draw_skill_menu(screen, tilemap_handler.player_character, self.current_enemy)
         # Low health red blink effect
         if hasattr(tilemap_handler, 'player_character') and tilemap_handler.player_character is not None:
             player = tilemap_handler.player_character
