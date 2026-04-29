@@ -28,6 +28,7 @@
 # image load, so Game() is created before TilemapHandler().
 # =============================================================================
 import pickle
+import math
 
 from combat_handler  import CombatHandler
 from tilemap_handler import *   # also pulls in NPC, WorldItem, items via handler
@@ -37,7 +38,10 @@ from save_manager    import SaveManager
 
 pygame.init()
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE | pygame.SCALED)
-
+# ----- BACKGROUND MUSIC -----
+pygame.mixer.music.load("Music/Theme.mp3")   
+pygame.mixer.music.set_volume(0.5)                      
+pygame.mixer.music.play(-1)     
 
 class Game:
     def __init__(self):
@@ -125,6 +129,7 @@ class Game:
                         self.world_loaded = True
                         self.map_label_timer = 180
                         self.game_state = "playing"
+                        pygame.mixer.music.set_volume(0.2)
                     elif self.pm_load_btn and self.pm_load_btn.collidepoint(mp):
                         self.game_state = "load_select"
                     elif self.pm_back_btn and self.pm_back_btn.collidepoint(mp):
@@ -143,6 +148,7 @@ class Game:
                             self.load_save_data(self.save_slots[i])
                             self.map_label_timer = 180
                             self.game_state = "playing"
+                            pygame.mixer.music.set_volume(0.2)
                             break
                     if self.slot_back_btn and self.slot_back_btn.collidepoint(mp):
                         self.game_state = "play_menu"
@@ -537,6 +543,17 @@ class Game:
                     tilemap_handler.player_character,
                     self.current_enemy,
                 )
+        # Low health red blink effect
+        if hasattr(tilemap_handler, 'player_character') and tilemap_handler.player_character is not None:
+            player = tilemap_handler.player_character
+            if 0 < player.health <= LOW_HEALTH_THRESHOLD:
+                t = pygame.time.get_ticks() * 0.006   # speed of pulse
+                alpha = int(75 + 75 * math.sin(t))    
+                if alpha > 0:
+                    overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+                    overlay.fill((255, 0, 0, alpha))
+                    screen.blit(overlay, (0, 0))
+                
 
         pygame.display.flip()
         self.clock.tick(FPS)
