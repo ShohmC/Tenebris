@@ -379,21 +379,26 @@ class Bat(Enemies):
 # =============================================================================
 
 class Slime(Enemies):
-    """
-    Weak, slow enemy. Good for beginners — low health, low damage.
-    Moves slower than other enemies (speed = 1).
-    """
     def __init__(self, screen, initial_x_location, initial_y_location, health):
         super().__init__(
-            screen, initial_x_location, initial_y_location,
+            screen,
+            initial_x_location,
+            initial_y_location,
+            # Slime has no directional sprites — reuse the same walk frames
+            # for every direction so it just wobbles regardless of heading.
+            "Enemy/Slime/idle.png",
+            "Enemy/Slime/up1.png",
+            "Enemy/Slime/up2.png",
+            "Enemy/Slime/down1.png",
+            "Enemy/Slime/down2.png",
             "Enemy/Slime/left1.png",
-            "Enemy/Slime/left1.png", "Enemy/Slime/left2.png",
-            "Enemy/Slime/right1.png", "Enemy/Slime/right2.png",
-            "Enemy/Slime/left1.png", "Enemy/Slime/left2.png",
-            "Enemy/Slime/right1.png", "Enemy/Slime/right2.png",
-            health, 6, 15, defense=0
+            "Enemy/Slime/left2.png",
+            "Enemy/Slime/right1.png",
+            "Enemy/Slime/right2.png",
+            health=health,
+            damage=4,
+            exp_on_kill=25,
         )
-        self.speed = 1.35
 
 
 # =============================================================================
@@ -401,20 +406,26 @@ class Slime(Enemies):
 # =============================================================================
 
 class Wolf(Enemies):
-    """
-    Fast, aggressive enemy. Higher damage and speed than the Bat.
-    """
     def __init__(self, screen, initial_x_location, initial_y_location, health):
         super().__init__(
-            screen, initial_x_location, initial_y_location,
-            "Enemy/Wolf/left1.png",
-            "Enemy/Wolf/left1.png", "Enemy/Wolf/left2.png",
-            "Enemy/Wolf/right1.png", "Enemy/Wolf/right2.png",
-            "Enemy/Wolf/left1.png", "Enemy/Wolf/left2.png",
-            "Enemy/Wolf/right1.png", "Enemy/Wolf/right2.png",
-            health, 12, 50, defense=3
+            screen,
+            initial_x_location,
+            initial_y_location,
+            "Enemy/Wolf/down1.png",
+            # up/down use the upright front/back frames
+            "Enemy/Wolf/up1.png",
+            "Enemy/Wolf/up2.png",
+            "Enemy/Wolf/down1.png",
+            "Enemy/Wolf/down2.png",
+            # left/right use the side-on running frames for a more natural look
+            "Enemy/Wolf/run_left1.png",
+            "Enemy/Wolf/run_left2.png",
+            "Enemy/Wolf/run_right1.png",
+            "Enemy/Wolf/run_right2.png",
+            health=health,
+            damage=12,
+            exp_on_kill=80,
         )
-        self.speed = 3
 
 
 # =============================================================================
@@ -422,17 +433,26 @@ class Wolf(Enemies):
 # =============================================================================
 
 class Skeleton(Enemies):
-    """
-    Tanky enemy. High health and defense, moderate damage.
-    """
     def __init__(self, screen, initial_x_location, initial_y_location, health):
         super().__init__(
-            screen, initial_x_location, initial_y_location,
+            screen,
+            initial_x_location,
+            initial_y_location,
+            # default / idle image
+            "Enemy/Skeleton/down1.png",
+            # up frames
+            "Enemy/Skeleton/up1.png",
+            "Enemy/Skeleton/up2.png",
+            # down frames
+            "Enemy/Skeleton/down1.png",
+            "Enemy/Skeleton/down2.png",
+            # left frames
             "Enemy/Skeleton/left1.png",
-            "Enemy/Skeleton/left1.png", "Enemy/Skeleton/left2.png",
-            "Enemy/Skeleton/right1.png", "Enemy/Skeleton/right2.png",
-            "Enemy/Skeleton/left1.png", "Enemy/Skeleton/left2.png",
-            "Enemy/Skeleton/right1.png", "Enemy/Skeleton/right2.png",
-            health, 8, 60, defense=6
+            "Enemy/Skeleton/left2.png",
+            # right frames
+            "Enemy/Skeleton/right1.png",
+            "Enemy/Skeleton/right2.png",
+            health=health,
+            damage=8,
+            exp_on_kill=60,
         )
-        self.speed = 1.35

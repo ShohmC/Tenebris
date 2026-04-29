@@ -27,24 +27,46 @@
 # Bootstrap order: pygame.init() + display.set_mode() must run before any
 # image load, so Game() is created before TilemapHandler().
 # =============================================================================
-import pickle
+import json
 import math
 import os
 
-from combat_handler  import CombatHandler
-from tilemap_handler import *   # also pulls in NPC, WorldItem, items via handler
-from camera          import *
-from inventory       import *
-from save_manager    import SaveManager
+from combat_handler import CombatHandler
+from tilemap_handler import *  # also pulls in NPC, WorldItem, items via handler
+from camera import *
+from inventory import *
+from save_manager import SaveManager
+from items import (
+    health_potion, max_potion, poison_item, antidote,
+    speed_boost_item, slow_item
+)
+
+# ----- Item lookup for save/load -----
+_ITEM_BY_NAME = {
+    item.name: item
+    for item in [
+        health_potion, max_potion, poison_item, antidote,
+        speed_boost_item, slow_item
+    ]
+}
+
+
+def item_from_name(name: str):
+    return _ITEM_BY_NAME.get(name)
+
+
+# ------------------------------------
 
 pygame.init()
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE | pygame.SCALED)
 #  BACKGROUND MUSIC  
-pygame.mixer.music.load("Music/Theme.mp3")   
-pygame.mixer.music.set_volume(0.5)                      
+pygame.mixer.music.load("Music/Theme.mp3")
+pygame.mixer.music.set_volume(0.5)
 pygame.mixer.music.play(-1)
 
 BACKGROUND_IMAGE = None
+
+
 def load_background():
     global BACKGROUND_IMAGE
     try:
@@ -59,29 +81,31 @@ def load_background():
             for i in range(WINDOW_HEIGHT):
                 color_value = 30 + int((i / WINDOW_HEIGHT) * 60)
                 pygame.draw.line(BACKGROUND_IMAGE, (color_value, color_value - 15, color_value - 30),
-                               (0, i), (WINDOW_WIDTH, i))
+                                 (0, i), (WINDOW_WIDTH, i))
     except Exception as e:
         print(f"Could not load background: {e}")
         # Fallback to dark gradient
         BACKGROUND_IMAGE = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
         BACKGROUND_IMAGE.fill((30, 20, 40))
 
+
 load_background()
+
 
 class Game:
     def __init__(self):
-        self.clock        = pygame.time.Clock()
-        self.dt           = self.clock.tick(FPS) / 100
-        self.running      = True
-        self.camera       = Camera()
-        self.inventory    = Inventory()
-        self.combat       = CombatHandler()
-        self.game_state   = "title"   # Start on the title screen
-        self.world_loaded = False     # True after New Game / Load Game creates the map
+        self.clock = pygame.time.Clock()
+        self.dt = self.clock.tick(FPS) / 100
+        self.running = True
+        self.camera = Camera()
+        self.inventory = Inventory()
+        self.combat = CombatHandler()
+        self.game_state = "title"  # Start on the title screen
+        self.world_loaded = False  # True after New Game / Load Game creates the map
         # previous_state lets inventory return to either "playing" or "combat"
-        self.previous_state      = None
+        self.previous_state = None
         # current_enemy is set when combat begins; cleared on victory
-        self.current_enemy       = None
+        self.current_enemy = None
         self.current_enemy_image = None
         self.save_manager = SaveManager(".save", "SaveData")
         self.inventory_background_is_combat = False
@@ -95,30 +119,30 @@ class Game:
 
         # XP popup — shown briefly after winning combat
         self.xp_popup_timer = 0
-        self.xp_popup_text  = ""
+        self.xp_popup_text = ""
         self._xp_popup_font = pygame.font.Font(None, 36)
 
         # ----- Menu fonts and buttons -----
-        self._title_font    = pygame.font.Font(None, 80)
+        self._title_font = pygame.font.Font(None, 80)
         self._subtitle_font = pygame.font.Font(None, 36)
-        self._menu_font     = pygame.font.Font(None, 52)
-        self._small_font    = pygame.font.Font(None, 32)
+        self._menu_font = pygame.font.Font(None, 52)
+        self._small_font = pygame.font.Font(None, 32)
 
         # Title screen buttons (built once in draw, hit-tested in events)
-        self.title_play_btn    = None
+        self.title_play_btn = None
         self.title_options_btn = None
-        self.title_exit_btn    = None
+        self.title_exit_btn = None
 
         # Play-menu buttons
-        self.pm_new_btn  = None
+        self.pm_new_btn = None
         self.pm_load_btn = None
         self.pm_back_btn = None
 
         # Pause menu buttons
-        self.pause_resume_btn  = None
+        self.pause_resume_btn = None
         self.pause_options_btn = None
-        self.pause_save_btn    = None
-        self.pause_exit_btn    = None
+        self.pause_save_btn = None
+        self.pause_exit_btn = None
 
         # Slot selection buttons (shared by save_select and load_select)
         self.slot_btns = [None, None, None]  # 3 slots
@@ -286,6 +310,23 @@ class Game:
 
             # --- Combat: button clicks (only active after transition finishes) ---
             if self.game_state == "combat" and self.combat.transition_finished:
+                # If post-battle screen is active, handle its clicks
+                if self.combat.battle_result is not None:
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        result = self.combat.handle_click(
+                            pygame.mouse.get_pos(),
+                            tilemap_handler.player_character,
+                            self.current_enemy,
+                            self.inventory,
+                        )
+                        if result == "post_battle_continue":
+                            # Return to playing
+                            self.game_state = "playing"
+                            self.combat.clear_battle()
+                            self.current_enemy = None
+                            self.xp_popup_timer = 0  # post‑battle already showed XP
+                    continue  # don't process normal combat clicks during post‑battle
+
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     result = self.combat.handle_click(
                         pygame.mouse.get_pos(),
@@ -293,16 +334,15 @@ class Game:
                         self.current_enemy,
                         self.inventory,
                     )
-                    if result == "victory":
+                    # "action_queued" means Fight was clicked; outcome arrives via
+                    # dequeue_result() in update() once the delay sequence finishes.
+                    if result == "action_queued":
+                        pass
+                    # Skills/items can still return victory/game_over immediately
+                    elif result == "victory":
                         xp_gained = self.current_enemy.exp_on_kill if self.current_enemy else 0
-                        tilemap_handler.player_character.gain_exp(xp_gained)
                         tilemap_handler.player_character.energy = tilemap_handler.player_character.max_energy
-                        self.xp_popup_text = f"+{xp_gained} XP"
-                        self.xp_popup_timer = 120
-                        self.game_state = "playing"
-                        self.combat.transition_finished = False
-                        self.combat.floaters.clear()
-                        self.current_enemy = None
+                        self.combat.show_post_battle(xp_gained, items=[])
                     elif result == "game_over":
                         print("Game Over")
                         self.running = False
@@ -318,16 +358,12 @@ class Game:
                         self.inventory_background_is_combat = True
                         self.game_state = "inventory"
                     elif result == "skill_menu_opened":
-                        # Skill menu is now active, stay in combat state
                         pass
                     elif result == "close":
-                        # Closed skill menu, stay in combat
                         pass
                     elif result == "no_energy":
-                        # Show feedback that player can't afford skill
                         self.combat.floaters.append({"text": "NOT ENOUGH ENERGY!", "color": (255, 100, 100),
                                                      "x": WINDOW_WIDTH // 2, "y": WINDOW_HEIGHT // 2, "timer": 60})
-                    # "turn_done" and "skill_used" don't change game state
 
     # -------------------------------------------------------------------------
     # Update
@@ -356,9 +392,9 @@ class Game:
                     tilemap_handler.player_sprite_group,
                 )
                 if enemy.initiate_battle_sequence:
-                    self.current_enemy       = enemy
+                    self.current_enemy = enemy
                     self.current_enemy_image = pygame.image.load(enemy.initial_image)
-                    self.game_state          = "combat"
+                    self.game_state = "combat"
                     self.combat.start_transition()
 
             # NPC per-frame update (reserved for patrol / idle animation)
@@ -374,7 +410,18 @@ class Game:
 
         elif self.game_state == "combat":
             if self.combat.transition_finished:
-                pass   # Turn logic is driven by mouse clicks in events()
+                # Tick the action queue every frame so delayed steps fire on time.
+                self.combat.update_action_queue()
+
+                # Poll for a result that a queued step may have produced.
+                result = self.combat.dequeue_result()
+                if result == "victory":
+                    xp_gained = self.current_enemy.exp_on_kill if self.current_enemy else 0
+                    tilemap_handler.player_character.energy = tilemap_handler.player_character.max_energy
+                    self.combat.show_post_battle(xp_gained, items=[])
+                elif result == "game_over":
+                    print("Game Over")
+                    self.running = False
 
     # -------------------------------------------------------------------------
     # Drawing
@@ -467,9 +514,9 @@ class Game:
         # Buttons
         btn_w, btn_h = 260, 60
         cx = WINDOW_WIDTH // 2 - btn_w // 2
-        self.title_play_btn    = self._draw_menu_button("Play",    pygame.Rect(cx, 380, btn_w, btn_h))
+        self.title_play_btn = self._draw_menu_button("Play", pygame.Rect(cx, 380, btn_w, btn_h))
         self.title_options_btn = self._draw_menu_button("Options", pygame.Rect(cx, 470, btn_w, btn_h), (120, 120, 140))
-        self.title_exit_btn    = self._draw_menu_button("Exit",    pygame.Rect(cx, 560, btn_w, btn_h), (200, 60, 60))
+        self.title_exit_btn = self._draw_menu_button("Exit", pygame.Rect(cx, 560, btn_w, btn_h), (200, 60, 60))
 
     def draw_play_menu(self):
         """Play sub-menu: New Game / Load Game / Back."""
@@ -480,10 +527,9 @@ class Game:
 
         btn_w, btn_h = 280, 60
         cx = WINDOW_WIDTH // 2 - btn_w // 2
-        self.pm_new_btn  = self._draw_menu_button("New Game",  pygame.Rect(cx, 340, btn_w, btn_h))
+        self.pm_new_btn = self._draw_menu_button("New Game", pygame.Rect(cx, 340, btn_w, btn_h))
         self.pm_load_btn = self._draw_menu_button("Load Game", pygame.Rect(cx, 430, btn_w, btn_h))
-        self.pm_back_btn = self._draw_menu_button("Back",      pygame.Rect(cx, 520, btn_w, btn_h), (120, 120, 140))
-
+        self.pm_back_btn = self._draw_menu_button("Back", pygame.Rect(cx, 520, btn_w, btn_h), (120, 120, 140))
 
     def draw_pause_menu(self):
         """Pause overlay drawn on top of the frozen world."""
@@ -500,10 +546,10 @@ class Game:
 
         btn_w, btn_h = 260, 55
         cx = WINDOW_WIDTH // 2 - btn_w // 2
-        self.pause_resume_btn  = self._draw_menu_button("Resume",  pygame.Rect(cx, 300, btn_w, btn_h))
+        self.pause_resume_btn = self._draw_menu_button("Resume", pygame.Rect(cx, 300, btn_w, btn_h))
         self.pause_options_btn = self._draw_menu_button("Options", pygame.Rect(cx, 380, btn_w, btn_h), (120, 120, 140))
-        self.pause_save_btn    = self._draw_menu_button("Save",    pygame.Rect(cx, 460, btn_w, btn_h))
-        self.pause_exit_btn    = self._draw_menu_button("Exit",    pygame.Rect(cx, 540, btn_w, btn_h), (200, 60, 60))
+        self.pause_save_btn = self._draw_menu_button("Save", pygame.Rect(cx, 460, btn_w, btn_h))
+        self.pause_exit_btn = self._draw_menu_button("Exit", pygame.Rect(cx, 540, btn_w, btn_h), (200, 60, 60))
 
     def _get_slot_info(self, slot_name):
         """Return a short description string for a save slot."""
@@ -540,7 +586,8 @@ class Game:
             label = f"Slot {i + 1}:  {info}"
             self.slot_btns[i] = self._draw_menu_button(label, pygame.Rect(cx, 260 + i * 90, btn_w, btn_h), small=True)
 
-        self.slot_back_btn = self._draw_menu_button("Back", pygame.Rect(cx, 260 + 3 * 90, btn_w, btn_h), (120, 120, 140))
+        self.slot_back_btn = self._draw_menu_button("Back", pygame.Rect(cx, 260 + 3 * 90, btn_w, btn_h),
+                                                    (120, 120, 140))
 
     def draw(self):
         if BACKGROUND_IMAGE:
@@ -572,28 +619,23 @@ class Game:
             if self.active_npc:
                 self.active_npc.draw_dialogue(screen)
 
-
         elif self.game_state == "inventory":
-            # Draw the appropriate background based on where we came from
             if self.inventory_background_is_combat:
-                # Draw combat screen as background
                 if not self.combat.transition_finished:
                     self.draw_world()
                     self.combat.draw_transition(screen)
                 else:
-                    self.combat.draw_combat_menu(
+                    self.combat.draw_combat_menu(  # <-- unchanged
                         screen,
                         tilemap_handler.player_character,
                         self.current_enemy,
                     )
-                    if self.combat.skill_menu_active:
-                        self.combat.draw_skill_menu(screen, tilemap_handler.player_character, self.current_enemy)
+                    # Skill menu drawing removed from here – it's inside draw_combat_menu now
             else:
-                # Draw normal world background
                 self.draw_world()
                 self.draw_dialogue_overlays()
-            # Draw inventory on top
             self.inventory.draw_inventory_menu(screen)
+
 
 
         elif self.game_state == "combat":
@@ -601,7 +643,7 @@ class Game:
                 self.draw_world()
                 self.combat.draw_transition(screen)
             else:
-                # Draw combat menu
+                # Completely handled inside draw_combat_menu (with shake & skill menu)
                 self.combat.draw_combat_menu(
                     screen,
                     tilemap_handler.player_character,
@@ -614,13 +656,12 @@ class Game:
         if hasattr(tilemap_handler, 'player_character') and tilemap_handler.player_character is not None:
             player = tilemap_handler.player_character
             if 0 < player.health <= LOW_HEALTH_THRESHOLD:
-                t = pygame.time.get_ticks() * 0.006   # speed of pulse
-                alpha = int(75 + 75 * math.sin(t))    
+                t = pygame.time.get_ticks() * 0.006  # speed of pulse
+                alpha = int(75 + 75 * math.sin(t))
                 if alpha > 0:
                     overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
                     overlay.fill((255, 0, 0, alpha))
                     screen.blit(overlay, (0, 0))
-                
 
         pygame.display.flip()
         self.clock.tick(FPS)
@@ -630,33 +671,90 @@ class Game:
     # -------------------------------------------------------------------------
 
     def get_save_data(self):
+        player = tilemap_handler.player_character
+        inv = self.inventory
+
+        # Convert the 3x9 inventory grid to a list of lists of item names (or None)
+        # Assumes self.inventory is an Inventory object with attribute .inventory
+        inv_grid = []
+        for row in range(inv.rows):
+            row_list = []
+            for col in range(inv.cols):
+                item = inv.inventory[row][col].get("item")
+                row_list.append(item.name if item else None)
+            inv_grid.append(row_list)
+
         return {
-            "health": tilemap_handler.player_character.health,
-            "exp":    tilemap_handler.player_character.exp,
-            "x":      tilemap_handler.player_character.rect.x,
-            "y":      tilemap_handler.player_character.rect.y,
-            "map":    tilemap_handler.current_map,
+            "health": player.health,
+            "exp": player.exp,
+            "energy": player.energy,
+            "x": player.rect.x,
+            "y": player.rect.y,
+            "map": tilemap_handler.current_map,
+            "unlocked_skill_ids": player.unlocked_skill_ids,
+            "upgrade_points": player.upgrade_points,
+            "inventory": inv_grid,
+            # set → list so JSON can serialize it; loaded back as set below
+            "active_statuses": list(player.active_statuses),
+            # status_timers values are plain dicts of ints — JSON-safe as-is
+            "status_timers": player.status_timers,
         }
 
     def load_save_data(self, slot_name="slot1"):
         try:
             data = self.save_manager.load_data(slot_name)
-            # Restore map if saved (backwards compatible with old saves)
+
+            # Restore map if different
             saved_map = data.get("map", tilemap_handler.current_map)
             if saved_map and saved_map != tilemap_handler.current_map:
                 tilemap_handler.transition_to_map(saved_map, data["x"], data["y"])
-            tilemap_handler.player_character.health = data["health"]
-            tilemap_handler.player_character.exp    = data["exp"]
+
+            player = tilemap_handler.player_character
+
+            # Basic stats
+            player.health = data["health"]
+            player.exp = data["exp"]
+            player.energy = data.get("energy", player.max_energy)  # fallback for old saves
+
+            # Calculate level from exp (or save it directly if you prefer)
             level = 1
-            while data["exp"] >= tilemap_handler.player_character.total_xp_for_level(level + 1):
+            while player.exp >= player.total_xp_for_level(level + 1):
                 level += 1
-            tilemap_handler.player_character.level = level
-            tilemap_handler.player_character.rect.x = data["x"]
-            tilemap_handler.player_character.rect.y = data["y"]
-        except (pickle.UnpicklingError, EOFError, AttributeError, ImportError) as e:
-            print(f"Failed to load corrupted or incompatible pickle file: {e}")
-        except FileNotFoundError:
-            print("No save file found")
+            player.level = level
+
+            # Unlocked skills & upgrade points
+            if "unlocked_skill_ids" in data:
+                player.unlocked_skill_ids = data["unlocked_skill_ids"]
+            if "upgrade_points" in data:
+                player.upgrade_points = data["upgrade_points"]
+
+            # Position
+            player.rect.x = data["x"]
+            player.rect.y = data["y"]
+
+            # --- Restore status effects ---
+            # JSON stores active_statuses as a list; Player needs a set
+            if "active_statuses" in data:
+                player.active_statuses = set(data["active_statuses"])
+            if "status_timers" in data:
+                # Merge saved values into the existing dict so any new keys
+                # added in future versions keep their defaults
+                for effect, timers in data["status_timers"].items():
+                    if effect in player.status_timers:
+                        player.status_timers[effect].update(timers)
+
+            # --- Restore inventory ---
+            if "inventory" in data:
+                inv_grid = data["inventory"]
+                for r in range(self.inventory.rows):
+                    for c in range(self.inventory.cols):
+                        item_name = inv_grid[r][c]
+                        self.inventory.inventory[r][c]["item"] = item_from_name(item_name)
+
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"Failed to load: {e}")
+        except Exception as e:
+            print(f"Corrupted save or incompatible data: {e}")
 
     # -------------------------------------------------------------------------
     # Main loop

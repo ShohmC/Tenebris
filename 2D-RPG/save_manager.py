@@ -1,23 +1,25 @@
-# save_manager.py — Handles writing and reading save files using pickle serialization.
-
-import pickle
+import json
 import os
 
 class SaveManager:
-    # Creates the save folder if it doesn't already exist (exist_ok prevents errors
-    # if the folder is already there)
-    def __init__(self, file_extension, save_folder):
-        self.file_extension = file_extension
-        self.save_folder = save_folder
-        os.makedirs(save_folder, exist_ok=True)
+    def __init__(self, save_dir=".save", data_dir="SaveData"):
+        self.save_dir = save_dir
+        self.data_dir = data_dir
+        self.full_path = os.path.join(save_dir, data_dir)
+        os.makedirs(self.full_path, exist_ok=True)
 
-    # Serializes data to a binary file using pickle; "wb" = write binary
-    def save_data(self, data, name):
-        with open(self.save_folder + "/" + name + self.file_extension, "wb") as data_file:
-            pickle.dump(data, data_file)
+    def save_data(self, data, slot_name):
+        """Save a dictionary as a JSON file inside the slot folder."""
+        slot_folder = os.path.join(self.full_path, slot_name)
+        os.makedirs(slot_folder, exist_ok=True)
+        filepath = os.path.join(slot_folder, "save.json")
+        with open(filepath, "w") as f:
+            json.dump(data, f, indent=2)
 
-    # Deserializes and returns data from a binary save file; "rb" = read binary
-    def load_data(self, name):
-        with open(self.save_folder + "/" + name + self.file_extension, "rb") as data_file:
-            data = pickle.load(data_file)
-            return data
+    def load_data(self, slot_name):
+        """Load a dictionary from a JSON file."""
+        filepath = os.path.join(self.full_path, slot_name, "save.json")
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"No save file for slot '{slot_name}'")
+        with open(filepath, "r") as f:
+            return json.load(f)

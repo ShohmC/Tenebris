@@ -13,11 +13,27 @@ class Item:
         # Plain number for simple items, dictionary for status effects —
         # e.g. {"damage": 2, "duration": 10000} for poison
         self.effect_value = effect_value
-        self.image = pygame.transform.scale(
-            pygame.image.load(image_path).convert_alpha(),
-            (TILESIZE * 2 - 8, TILESIZE * 2 - 8)  # slightly smaller than slot
-        ) if image_path else None
+        # Store the path instead of loading immediately — convert_alpha()
+        # requires pygame.display.set_mode() to have been called first.
+        # The image Surface is built on first access via the property below.
+        self._image_path = image_path
+        self._image = None          # loaded lazily on first use
         self.consumable = consumable
+
+    @property
+    def image(self):
+        """Load and cache the image Surface on first access."""
+        if self._image is None and self._image_path is not None:
+            self._image = pygame.transform.scale(
+                pygame.image.load(self._image_path).convert_alpha(),
+                (TILESIZE * 2 - 8, TILESIZE * 2 - 8)
+            )
+        return self._image
+
+    @image.setter
+    def image(self, value):
+        """Allow external code to assign self.image directly if needed."""
+        self._image = value
 
     # Status effects write into player.status_timers and player.active_statuses;
     # the actual per-frame effect logic lives in player.status().
