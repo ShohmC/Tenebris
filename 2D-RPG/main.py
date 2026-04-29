@@ -38,7 +38,7 @@ from save_manager    import SaveManager
 
 pygame.init()
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE | pygame.SCALED)
-# ----- BACKGROUND MUSIC -----
+#  BACKGROUND MUSIC  
 pygame.mixer.music.load("Music/Theme.mp3")   
 pygame.mixer.music.set_volume(0.5)                      
 pygame.mixer.music.play(-1)     
