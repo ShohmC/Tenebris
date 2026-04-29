@@ -53,6 +53,12 @@ class CombatHandler(pygame.sprite.Sprite):
         self.fight_button = None
         self.items_button = None
         self.run_button   = None
+        
+        self.attack_sound = pygame.mixer.Sound("Music/punch2.mp3")
+        self.attack_sound.set_volume(0.5)
+        self.hurt_sound = pygame.mixer.Sound("Music/punch1.mp3")
+        self.hurt_sound.set_volume(0.6)
+        
 
         # Floating text system — list of {"text", "color", "x", "y", "timer"}
         self.floaters = []
@@ -204,6 +210,7 @@ class CombatHandler(pygame.sprite.Sprite):
     def handle_click(self, mouse_pos, player, enemy, inventory):
         if self.fight_button and self.fight_button.collidepoint(mouse_pos):
             player_attack = player.get_attack()
+            self.attack_sound.play()
             enemy_defense = getattr(enemy, 'defense', 0)
             damage = max(1, player_attack - enemy_defense)
             enemy.health -= damage
@@ -219,6 +226,7 @@ class CombatHandler(pygame.sprite.Sprite):
                 player_defense = player.get_defense()
                 enemy_damage = max(1, enemy_attack - player_defense)
                 player.take_damage(enemy_damage)
+                self.hurt_sound.play() 
                 # Damage floater on player (left side)
                 self.floaters.append({"text": f"-{enemy_damage}", "color": (255, 80, 80),
                                       "x": WINDOW_WIDTH // 6 + 40, "y": WINDOW_HEIGHT // 3.5 - 40, "timer": 60})
