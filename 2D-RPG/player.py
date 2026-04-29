@@ -35,7 +35,10 @@ class Player(pygame.sprite.Sprite):
         self.velocity = pygame.math.Vector2(0, 0)
         # Multiplied into velocity each frame; modified by speed_boost and slow effects
         self.velocity_multiplier = 1
-
+        # sound for player movement
+        self.step_sound = pygame.mixer.Sound("Music/stepgrass.mp3")
+        self.step_sound.set_volume(0.7)
+        self.step_cooldown = 0
         # Default facing image (right-facing frame 1), scaled to fit within a tile.
         self.image = pygame.transform.scale(
             pygame.image.load("Player/right1.png").convert_alpha(),
@@ -213,6 +216,16 @@ class Player(pygame.sprite.Sprite):
         if keys[pygame.K_d]:
             self.animate("right_counter", self.right_frames)
             self.velocity.x = PLAYER_X_VELOCITY * dt * self.velocity_multiplier
+
+
+                # footstep sound
+        if moved and self.step_cooldown <= 0:
+            self.step_sound.play()
+            self.step_cooldown = 15   
+        elif self.step_cooldown > 0:
+            self.step_cooldown -= 1
+            
+
 
     # -------------------------------------------------------------------------
     # Status Effects
