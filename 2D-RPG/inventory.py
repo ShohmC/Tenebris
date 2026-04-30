@@ -23,7 +23,7 @@ class Inventory(pygame.sprite.Sprite):
 
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
-        from items import health_potion, max_potion, poison_item, antidote, speed_boost_item, slow_item
+        from items import health_potion, max_potion, poison_item, antidote, speed_boost_item, slow_item , wooden_sword, bow, staff
 
         # Slot background images — loaded once and reused for every slot blit.
         self.inventory_slot_image = pygame.transform.scale(
@@ -49,7 +49,10 @@ class Inventory(pygame.sprite.Sprite):
         self.inventory[0][3]["item"] = speed_boost_item
         self.inventory[0][4]["item"] = slow_item
         self.inventory[0][5]["item"] = max_potion
-
+        # Weapons for testing
+        self.inventory[0][6]["item"] = wooden_sword
+        self.inventory[0][7]["item"] = bow
+        self.inventory[0][8]["item"] = staff
         # Parallel boolean grid tracking which slot is currently selected.
         self.selected_slot = [[False for _ in range(self.cols)] for _ in range(self.rows)]
 

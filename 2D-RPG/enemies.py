@@ -73,6 +73,7 @@ class Enemies(pygame.sprite.Sprite):
         self.damage = damage
         self.exp_on_kill = exp_on_kill
         self.defense = defense
+        self.evasion = 0.0 
 
         # --- Status Effects System ---
         self.active_statuses = {}
@@ -370,9 +371,10 @@ class Bat(Enemies):
             "Enemy/Bat/left1.png", "Enemy/Bat/left2.png",
             "Enemy/Bat/right1.png", "Enemy/Bat/right2.png",
             health, 10, 35, defense=2
+            
         )
         self.speed = 2.5
-
+        self.evasion = 0.25   # 25% chance to dodge
 
 # =============================================================================
 # Concrete Enemy: Slime
@@ -399,6 +401,7 @@ class Slime(Enemies):
             damage=4,
             exp_on_kill=25,
         )
+        self.evasion = 0.05
 
 
 # =============================================================================
@@ -426,6 +429,7 @@ class Wolf(Enemies):
             damage=12,
             exp_on_kill=80,
         )
+        self.evasion = 0.05
 
 
 # =============================================================================
@@ -456,3 +460,4 @@ class Skeleton(Enemies):
             damage=8,
             exp_on_kill=60,
         )
+        self.evasion = 0.05
