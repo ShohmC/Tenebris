@@ -69,7 +69,7 @@ class Player(pygame.sprite.Sprite):
         self.level          = 1
         self.unlocked_skill_ids = ["slash", "heavy_strike", "poison_strike", "quick_slash"]  # Starting skills
         self.upgrade_points = 0
-
+        self.weapon = None
         # --- Player Status Effects ---
         # active_statuses holds string names of currently active effects (e.g. "poison").
         # status_timers holds per-effect timing and value data; written by Item.use()
@@ -211,7 +211,8 @@ class Player(pygame.sprite.Sprite):
     def get_skill_list(self):
         """Return list of skill IDs the player has unlocked."""
         return self.unlocked_skill_ids
-
+    def get_miss_modifier(self):
+        return self.weapon.miss_modifier if self.weapon else 0.0
     # -------------------------------------------------------------------------
     # Collision
     # -------------------------------------------------------------------------

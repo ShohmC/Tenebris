@@ -445,7 +445,7 @@ class CombatHandler(pygame.sprite.Sprite):
         shadow.fill((0, 0, 0, 100))
         combat_surface.blit(shadow, (player_rect.x + 5, player_rect.y + 5))
         combat_surface.blit(player_scaled, player_rect)
-
+ 
         # --- Player Status Panel ---
         panel_width, panel_height = 240, 130
         panel_x, panel_y = 20, 20
@@ -480,6 +480,7 @@ class CombatHandler(pygame.sprite.Sprite):
         energy_y = bar_y + bar_height + 15
         combat_surface.blit(self.skill_button_font.render("ENERGY", True, (150, 180, 220)),
                             (bar_x, energy_y - 18))
+                            
         pygame.draw.rect(combat_surface, (20, 30, 40), (bar_x, energy_y, bar_width, bar_height), border_radius=4)
         pygame.draw.rect(combat_surface, (80, 150, 220),
                          (bar_x, energy_y, int(bar_width * player.energy / player.max_energy), bar_height), border_radius=4)
@@ -488,7 +489,9 @@ class CombatHandler(pygame.sprite.Sprite):
             self.skill_button_font.render(f"{player.energy}/{player.max_energy}", True, (200, 220, 255)),
             (bar_x + bar_width // 2 - self.skill_button_font.size(f"{player.energy}/{player.max_energy}")[0] // 2, energy_y + 2)
         )
-
+        # Weapon display inside player panel
+        weapon_text = self.skill_button_font.render(f"Weapon: {player.weapon.name if player.weapon else 'Fists'}", True, (240,200,100))
+        combat_surface.blit(weapon_text, (panel_x + 10, panel_y + panel_height - 25))
         # --- Enemy Sprite ---
         if hasattr(enemy, 'combat_image'):
             enemy_surface = enemy.combat_image
@@ -704,17 +707,37 @@ class CombatHandler(pygame.sprite.Sprite):
         """
         # Pre-calculate both attacks NOW (before any delays) so the numbers
         # are consistent regardless of timing.
-        player_attack  = player.get_attack()
-        enemy_defense  = getattr(enemy, 'defense', 0)
-        raw_damage     = max(1, player_attack - enemy_defense)
-        is_player_crit = self._roll_crit()
-        player_damage  = raw_damage * 2 if is_player_crit else raw_damage
+        # Pre-calculate hit chance
+        hit_chance = 1.0 - (player.get_miss_modifier() + enemy.evasion)
+        is_hit = random.random() <= hit_chance
+
+        # Damage calculation only if hit
+        if is_hit:
+            player_attack = player.get_attack()
+            enemy_defense = getattr(enemy, 'defense', 0)
+            raw_damage = max(1, player_attack - enemy_defense)
+            is_player_crit = self._roll_crit()
+            player_damage = raw_damage * 2 if is_player_crit else raw_damage
+        else:
+            player_damage = 0
+            is_player_crit = False
 
         enemy_name = enemy.__class__.__name__
 
         # --- Step 1: Player attack log ---
         def step_player_attack():
             player.regen_energy(player.energy_regen_basic_attack)
+            if not is_hit:
+                self._add_to_log(f"{PLAYER_NAME} swings and misses!")
+                self.floaters.append({
+                    "text": "MISS!",
+                    "color": (200, 200, 200),
+                    "x": WINDOW_WIDTH // 1.5 + 80,
+                    "y": WINDOW_HEIGHT // 6.25 - 60,
+                    "timer": 30
+                })
+                return   # no damage, skip to next queued steps
+
             enemy.health -= player_damage
             self.attack_sound.play()
             self._spawn_flash("enemy")   # flash on enemy side when player hits

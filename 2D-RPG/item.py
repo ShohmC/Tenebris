@@ -7,7 +7,7 @@ import pygame
 from config import *
 
 class Item:
-    def __init__(self, name, item_type, effect_value, image_path = None, consumable = True):
+    def __init__(self, name, item_type, effect_value, image_path = None, consumable = True , miss_modifier=0.0):
         self.name = name
         self.item_type = item_type
         # Plain number for simple items, dictionary for status effects —
@@ -19,7 +19,7 @@ class Item:
         self._image_path = image_path
         self._image = None          # loaded lazily on first use
         self.consumable = consumable
-
+        self.miss_modifier = miss_modifier
     @property
     def image(self):
         """Load and cache the image Surface on first access."""
@@ -38,6 +38,9 @@ class Item:
     # Status effects write into player.status_timers and player.active_statuses;
     # the actual per-frame effect logic lives in player.status().
     def use(self, player):
+        if self.item_type == "weapon":
+            player.weapon = self
+            return
         current_time = pygame.time.get_ticks()
 
         if self.item_type == "health":
